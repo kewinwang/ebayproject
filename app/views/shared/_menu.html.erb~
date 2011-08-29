@@ -1,0 +1,6 @@
+<div class="menu_nav">
+<ul>
+		<li><%= link_to "products", "products_path"%></li> |		
+		<li><%= link_to "auth token", "ebay_auth_tokens_path"%></li>	
+</ul>		
+</div>

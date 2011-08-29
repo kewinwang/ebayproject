@@ -1,0 +1,10 @@
+<div id="user_session">
+ <% if current_user%>
+   <%= "Signed in as #{current_user.login} ,Not you?"%>
+   <!--%= link_to "My Account" , "" %-->
+   <%= link_to "Logout",logout_path %>
+ <% else %>  
+   <%= link_to "Sign in" ,new_user_session_path %>
+   <%= link_to "Regiester", new_users_path %>
+ <% end%>
+</div>

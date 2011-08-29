@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<AddItemsResponse xmlns="urn:ebay:apis:eBLBaseComponents">
+	<Timestamp>2011-07-18T11:01:03.461Z</Timestamp>
+	<Ack>Failure</Ack>
+	<Errors>
+		<ShortMessage>Errors in Input Data.</ShortMessage>
+		<LongMessage>Errors in Input Data.Please try again.</LongMessage>
+		<ErrorCode>400</ErrorCode>
+		<SeverityCode>Error</SeverityCode>
+		<ErrorClassification>RequestError</ErrorClassification>
+	</Errors>
+	<Version>729</Version>
+	<Build>E729_CORE_BUNDLED_13480406_R1</Build>
+	<AddItemResponseContainer>
+		<CorrelationID>9780071280419</CorrelationID>
+		<Errors>
+			<ShortMessage>Invalid product identifier: 9780071280419 for type: ISBN.</ShortMessage>
+			<LongMessage>Could not find a matching product for the given input. Please provide valid values.</LongMessage>
+			<ErrorCode>21678</ErrorCode>
+			<SeverityCode>Error</SeverityCode>
+			<ErrorParameters ParamID="0">
+				<Value>ISBN</Value>
+			</ErrorParameters>
+			<ErrorParameters ParamID="1">
+				<Value>9780071280419</Value>
+			</ErrorParameters>
+			<ErrorClassification>RequestError</ErrorClassification>
+		</Errors>
+	</AddItemResponseContainer>
+	<AddItemResponseContainer>
+		<CorrelationID>9780071287982</CorrelationID>
+		<Errors>
+			<ShortMessage>Invalid product identifier: 9780071287982 for type: ISBN.</ShortMessage>
+			<LongMessage>Could not find a matching product for the given input. Please provide valid values.</LongMessage>
+			<ErrorCode>21678</ErrorCode>
+			<SeverityCode>Error</SeverityCode>
+			<ErrorParameters ParamID="0">
+				<Value>ISBN</Value>
+			</ErrorParameters>
+			<ErrorParameters ParamID="1">
+				<Value>9780071287982</Value>
+			</ErrorParameters>
+			<ErrorClassification>RequestError</ErrorClassification>
+		</Errors>
+	</AddItemResponseContainer>
+</AddItemsResponse>

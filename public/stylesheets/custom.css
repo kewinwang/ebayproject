@@ -1,0 +1,43 @@
+#main{
+  margin:  auto 10%;
+}
+
+#user_session{  
+  display: block;
+  
+}
+
+#login, #regeister{
+ width: 32em;
+ margin: 5em auto; 
+ moz-border-radius: 3px ;
+ border-radius: 3px;
+ background-color: #E9F1F4;
+ border-color: #E9F1F4 #D8DEE2 #D8DEE2;
+ border-style: solid;
+ border-width: 1px 1px 2px;
+ overflow: hidden;
+ padding: 2em;
+}
+
+.loginform{
+  width: 100%;
+  padding: 10px;
+}
+.loginform_body{
+  width: 100%;   
+  padding: 10px;  
+}
+
+.menu_nav ul li{
+  list-style-type: none;
+  display: inline-block;
+  
+}
+.menu_nav ul li a { 
+  text-decoration: none;
+}
+/** the product page style***/
+#prodcuct_price .field{
+  display: inline-block;
+}
