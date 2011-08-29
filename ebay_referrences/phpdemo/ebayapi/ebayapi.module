@@ -1,0 +1,1139 @@
+<?php
+// $Id: ebayapi.module,v 1.0 2010/09/08 - tuan Exp $
+
+/**
+* Initiate global variables 
+*/
+function ebayapi_init() {
+    // Get variable used for overall module
+    if (variable_get('ebayapi_environment', 0)) {
+        // Production
+        $dev_id = variable_get('ebayapi_dev_id', '');
+        $app_id = variable_get('ebayapi_app_id', '');
+        $cert_id = variable_get('ebayapi_cert_id', '');
+        $runame = variable_get('ebayapi_runame', '');
+        $trading_api_endpoint = variable_get('ebayapi_endpoint_trading', '');
+        $shopping_api_endpoint = variable_get('ebayapi_endpoint_shopping', '');
+        $finding_api_endpoint = variable_get('ebayapi_endpoint_finding', '');
+        $ebay_signin_url = variable_get('ebayapi_ebay_signin_url', '');
+    }
+    else{
+        // Sandbox
+        $dev_id = variable_get('ebayapi_sandbox_dev_id', '');
+        $app_id = variable_get('ebayapi_sandbox_app_id', '');
+        $cert_id = variable_get('ebayapi_sandbox_cert_id', '');
+        $runame = variable_get('ebayapi_sandbox_runame', '');
+        $trading_api_endpoint = variable_get('ebayapi_sandbox_endpoint_trading', '');
+        $shopping_api_endpoint = variable_get('ebayapi_sandbox_endpoint_shopping', '');
+        $finding_api_endpoint = variable_get('ebayapi_sandbox_endpoint_finding', '');
+        $ebay_signin_url = variable_get('ebayapi_sandbox_ebay_signin_url', '');
+    }
+
+    // Global settings
+    if (!$dev_id or !$app_id or !$cert_id or !$runame or !$trading_api_endpoint or !$shopping_api_endpoint or !$finding_api_endpoint or !$ebay_signin_url) {
+        drupal_set_message(t('Parameters are missing for eBay API module. Please go to '. l(t('Admin Settings'), 'admin/settings/ebay_api') .' to fix them.'), 'error');
+        return;
+    }
+
+    define(DEV_ID, $dev_id);
+    define(APP_ID, $app_id);
+    define(CERT_ID, $cert_id);
+    define(RUNAME, $runame);
+    define(TRADING_API_ENDPOINT, $trading_api_endpoint);
+    define(SHOPPING_API_ENDPOINT, $shopping_api_endpoint);
+    define(FINDING_API_ENDPOINT, $finding_api_endpoint);
+    define(EBAY_SIGNIN_URL, $ebay_signin_url);
+}
+
+/**
+* Implement hook Menu
+*/
+function ebayapi_menu() {
+  $items = array();
+  $items['ebayapi_test'] = array(
+    'title' => 'eBay API test page',
+    'description' => 'This page is used for demonstration purpose!',
+    'page callback' => 'ebayapi_test',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+   );
+   
+   // Add link to admin settings
+  $items['admin/settings/ebay_api'] = array(
+    'title' => 'eBay API Settings',
+    'description' => 'eBay API Settings',
+    'page callback' => 'ebayapi_admin_settings',
+    'access arguments' => array('administer site configuration'),
+   );
+
+   $items['ebayapi/ebay_signin'] = array(
+      'title' => 'eBay API genenrate token',
+      'description' => 'Try to get SessionID from eBay and perform a user auth token consent flow.',
+      'page callback' => 'ebayapi_ebay_signin',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK,
+   );
+
+   $items['ebayapi/consentflow'] = array(
+      'title' => 'eBay API genenrate token',
+      'description' => 'Try to get SessionID from eBay and perform a user auth token consent flow.',
+      'page callback' => 'ebayapi_consentflow',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK,
+   );
+
+      
+  return $items;
+}
+
+
+/**
+* Admin settings for ebay api module
+*/
+function ebayapi_admin_settings() {
+    return drupal_get_form('ebayapi_settings_form');
+}
+
+/**
+* Build up form array for our admin settings
+*/
+
+function ebayapi_settings_form () {
+    $form = array();
+
+    // Select environment
+    $form['environment'] = array(
+        '#type' => 'radios',
+        '#title' => t('Select environment'),
+        '#default_value' => variable_get('ebayapi_environment', 0),
+        '#options' => array(t('Sandbox'), t('Production')),
+        '#weight' => 0,
+        '#required' => true,
+    );
+
+    // Sandbox
+    $form['sandbox_settings'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Sandbox settings'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => 1,
+    );
+
+    $form['sandbox_settings']['sandbox_dev_id'] = array(
+        '#title' => t('DevID'),
+        '#type' => 'textfield',
+        '#description' => t('Application DevID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_sandbox_dev_id', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_app_id'] = array(
+        '#title' => t('AppID'),
+        '#type' => 'textfield',
+        '#description' => t('Application AppID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_sandbox_app_id', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_cert_id'] = array(
+        '#title' => t('CertID'),
+        '#type' => 'textfield',
+        '#description' => t('Application CertID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_sandbox_cert_id', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_runame'] = array(
+        '#title' => t('RuName'),
+        '#type' => 'textfield',
+        '#description' => t('RuName used to launch consent flow to generate auth token id for user.'),
+        '#default_value' => variable_get('ebayapi_sandbox_runame', ''),
+    );
+    
+    $form['sandbox_settings']['sandbox_endpoint_trading'] = array(
+        '#title' => t('Endpoint for Trading API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Trading API'),
+        '#default_value' => variable_get('ebayapi_sandbox_endpoint_trading', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_endpoint_shopping'] = array(
+        '#title' => t('Endpoint for Shopping API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Shopping API'),
+        '#default_value' => variable_get('ebayapi_sandbox_endpoint_shopping', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_endpoint_finding'] = array(
+        '#title' => t('Endpoint for Finding API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Finding API'),
+        '#default_value' => variable_get('ebayapi_sandbox_endpoint_finding', ''),
+    );
+
+    $form['sandbox_settings']['sandbox_ebay_signin_url'] = array(
+        '#title' => t('eBay Signin URL'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to sign in when user generates user token id.'),
+        '#default_value' => variable_get('ebayapi_sandbox_ebay_signin_url', ''),
+    );
+        
+    // Production
+    $form['production_settings'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Production settings'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => 2,
+    );
+
+    $form['production_settings']['dev_id'] = array(
+        '#title' => t('DevID'),
+        '#type' => 'textfield',
+        '#description' => t('Application DevID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_dev_id', ''),
+    );
+
+    $form['production_settings']['app_id'] = array(
+        '#title' => t('AppID'),
+        '#type' => 'textfield',
+        '#description' => t('Application AppID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_app_id', ''),
+    );
+
+    $form['production_settings']['cert_id'] = array(
+        '#title' => t('CertID'),
+        '#type' => 'textfield',
+        '#description' => t('Application CertID can be obtained when you registered at http://developer.ebay.com.'),
+        '#default_value' => variable_get('ebayapi_cert_id', ''),
+    );
+
+    $form['production_settings']['runame'] = array(
+        '#title' => t('RuName'),
+        '#type' => 'textfield',
+        '#description' => t('RuName used to launch consent flow to generate auth token id for user.'),
+        '#default_value' => variable_get('ebayapi_runame', ''),
+    );
+    
+    $form['production_settings']['endpoint_trading'] = array(
+        '#title' => t('Endpoint for Trading API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Trading API'),
+        '#default_value' => variable_get('ebayapi_endpoint_trading', ''),
+    );
+
+    $form['production_settings']['endpoint_shopping'] = array(
+        '#title' => t('Endpoint for Shopping API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Shopping API'),
+        '#default_value' => variable_get('ebayapi_endpoint_shopping', ''),
+    );
+
+    $form['production_settings']['endpoint_finding'] = array(
+        '#title' => t('Endpoint for Finding API'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to send request to for Finding API'),
+        '#default_value' => variable_get('ebayapi_endpoint_finding', ''),
+    );
+
+    $form['production_settings']['ebay_signin_url'] = array(
+        '#title' => t('eBay Signin URL'),
+        '#type' => 'textfield',
+        '#description' => t('The URL that used to sign in when user generates user token id.'),
+        '#default_value' => variable_get('ebayapi_ebay_signin_url', ''),
+    );
+    
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Save Settings'),
+        '#weight' => 3,
+    );
+
+  return $form;
+}
+
+/**
+* Validate the ebay api form settings
+*/
+function ebayapi_settings_form_validate(&$form, &$form_state) {
+    if ($form_state['values']['environment']) {
+        // Production fields are all required
+        if ($form_state['values']['dev_id'] == '') {
+            form_set_error('dev_id', 'Dev Id field is required.');
+        }
+        if ($form_state['values']['app_id'] == '') {
+            form_set_error('app_id', 'App Id field is required.');
+        }
+        if ($form_state['values']['cert_id'] == '') {
+            form_set_error('cert_id', 'Cert Id field is required.');
+        }
+        if ($form_state['values']['runame'] == '') {
+            form_set_error('runame', 'Runame field is required.');
+        }
+        if ($form_state['values']['endpoint_trading'] == '') {
+            form_set_error('endpoint_trading', 'End point trading URL field is required.');
+        }
+        if ($form_state['values']['endpoint_shopping'] == '') {
+            form_set_error('endpoint_shopping', 'End point shopping URL field is required.');
+        }
+        if ($form_state['values']['endpoint_finding'] == '') {
+            form_set_error('endpoint_finding', 'End point finding URL field is required.');
+        }
+        if ($form_state['values']['ebay_signin_url'] == '') {
+            form_set_error('ebay_signin_url', 'eBay sigin URL field is required.');
+        }
+
+    }
+    else{
+        // Sandbox fields are all required
+        if ($form_state['values']['sandbox_dev_id'] == '') {
+            form_set_error('sandbox_dev_id', 'Sandbox Dev Id field is required.');
+        }
+        if ($form_state['values']['sandbox_app_id'] == '') {
+            form_set_error('sandbox_app_id', 'Sandbox App Id field is required.');
+        }
+        if ($form_state['values']['sandbox_cert_id'] == '') {
+            form_set_error('sandbox_cert_id', 'Sandbox Cert Id field is required.');
+        }
+        if ($form_state['values']['sandbox_runame'] == '') {
+            form_set_error('sandbox_runame', 'Sandbox Runame field is required.');
+        }
+        if ($form_state['values']['sandbox_endpoint_trading'] == '') {
+            form_set_error('sandbox_endpoint_trading', 'Sandbox End point trading URL field is required.');
+        }
+        if ($form_state['values']['sandbox_endpoint_shopping'] == '') {
+            form_set_error('sandbox_endpoint_shopping', 'Sandbox End point shopping URL field is required.');
+        }
+        if ($form_state['values']['sandbox_endpoint_finding'] == '') {
+            form_set_error('sandbox_endpoint_finding', 'Sandbox End point finding URL field is required.');
+        }
+        if ($form_state['values']['sandbox_ebay_signin_url'] == '') {
+            form_set_error('sandbox_ebay_signin_url', 'Sandbox eBay sigin URL field is required.');
+        }        
+    }
+}
+
+/**
+* Handle form submit on our eBay Admin Form
+*/
+
+function ebayapi_settings_form_submit(&$form, &$form_state) {
+    // Store settings
+    
+    // Environment
+    variable_set('ebayapi_environment', $form_state['values']['environment']);
+
+    // For sandbox
+    variable_set('ebayapi_sandbox_dev_id', $form_state['values']['sandbox_dev_id']);
+    variable_set('ebayapi_sandbox_app_id', $form_state['values']['sandbox_app_id']);
+    variable_set('ebayapi_sandbox_cert_id', $form_state['values']['sandbox_cert_id']);
+    variable_set('ebayapi_sandbox_runame', $form_state['values']['sandbox_runame']);
+    
+    variable_set('ebayapi_sandbox_endpoint_trading', $form_state['values']['sandbox_endpoint_trading']);
+    variable_set('ebayapi_sandbox_endpoint_shopping', $form_state['values']['sandbox_endpoint_shopping']);
+    variable_set('ebayapi_sandbox_endpoint_finding', $form_state['values']['sandbox_endpoint_finding']);
+
+    variable_set('ebayapi_sandbox_ebay_signin_url', $form_state['values']['sandbox_ebay_signin_url']);
+
+    // For production
+    variable_set('ebayapi_dev_id', $form_state['values']['dev_id']);
+    variable_set('ebayapi_app_id', $form_state['values']['app_id']);
+    variable_set('ebayapi_cert_id', $form_state['values']['cert_id']);
+    variable_set('ebayapi_runame', $form_state['values']['runame']);
+    
+    variable_set('ebayapi_endpoint_trading', $form_state['values']['endpoint_trading']);
+    variable_set('ebayapi_endpoint_shopping', $form_state['values']['endpoint_shopping']);
+    variable_set('ebayapi_endpoint_finding', $form_state['values']['endpoint_finding']);
+
+    variable_set('ebayapi_ebay_signin_url', $form_state['values']['ebay_signin_url']);
+
+    // Report success
+    drupal_set_message('eBay API settings are now successfully saved.', 'status');
+}
+
+/**
+* Function to return whether an ebay user id does exist
+*/
+function ebayapi_userid_exists($user_id) {
+    $user_profile = ebayapi_getuserprofile($user_id);
+    if ($user_profile->User->UserID) {
+        return true;
+    }else{
+        return false;
+    }
+}
+
+/**
+* Wrapper function for GetSessionID
+*/
+function ebayapi_getsessionid() {
+    // Make sure keys exist
+
+	 
+    if (!ebayapi_params_checker())
+	{	  
+		return NULL;
+	}
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetSessionIDRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RuName>'. RUNAME .'</RuName>
+            </GetSessionIDRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetSessionID');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return $result->SessionID;
+    }else{
+        return '';
+    }
+}
+
+/**
+* Wrapper function for UploadSiteHostedPictures
+*/
+function ebayapi_uploadsitehostedpictures($auth_token, $picture_tags) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+    // Build XML
+
+	//<eBayAuthToken>AgAAAA**AQAAAA**aAAAAA**5dsTTg**nY+sHZ2PrBmdj6wVnY+sEZ2PrA2dj6wGlougAJmHpgSdj6x9nY+seQ**ePEAAA**AAMAAA**sBVtz4eBMvBjSZBb31LtEPJXOr9BkviLIIGmnXUDA/+a4SDIYJveFfA3i7x+mXyvDPdDdBuT4YjQpJhXRFcyGnnKqw+dtVrJ02ZUjsXwhBVg92AF5JBF6IIQvpCQxjZ4LNLyWne8TwcsUq2RcD1ahpvQBC0CS5ZkYBh4w1IiRvDJgOghhvl52XYcLKAfV1ebEQeAs4r7RWAYuX7oLO61P5WXy/hvd/EeIiXzYFsBA/PfCjdAbD2qrHOvxrofWygKPIdYCeJ2Y9MNZMwhsrcNM7R2qWBhyIn6v7b/hS2814ytZWFDpTdcxHrkCVtbVCLyAHwo0GZZd7QqY/47+BKqvddmADh3AZ455VnKAPLU87J81lI0GZcz8PJvc2LxUxH4RqykcJwe1z+mT90YSNsL7htQ5+LjV4T4bxKWFX3NW3v8jwvh5MzFS8LfTvDp9guloayH1PE3Q/RRO3pEH1mGyCKqoDqFFTJ8yhWkvg5vbBzcnOWSv82d3C1aUx+wufuHJp0A6raq9dCkDxwFrXWidsRynfDM/1jkmIYXvgaXLR6G5rmBtJzXvgIAoLitUEzOZFZfztzjknXe989csxe/pkl1dQfwzP4t4zUGQmhwQlwiWl+4BkRp6d2xxN6mU8VIbCDb7yqjBHK8iJEx98c/UX9BSk+q0l11Ja7Gf1ncnRz+gySymU59z3/qfLP0uIuYzOHB7c+aMxCmeeIN8/GKRaZGuePNt3POLc9Xiv221AoOR1XeEH4jcN9fMV74ZlBi</eBayAuthToken>
+
+	//<eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <UploadSiteHostedPicturesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RequesterCredentials>
+		<eBayAuthToken>AgAAAA**AQAAAA**aAAAAA**q7oXTg**nY+sHZ2PrBmdj6wVnY+sEZ2PrA2dj6wGlougAJmHpgSdj6x9nY+seQ**ePEAAA**AAMAAA**qoZkcriyKBrhVhBzPbAO8eD3V29jYe/HbB3IWAB9vAZEV+mU65/buVU4snHoD1hpwsf9+d7JslFRNmRcJzygdxLaSZCtWpu0j3elSodpo800bNkRlCLJ5dBwgKhTogHJwFcHmA/bxkqhX6UBKAca8E9b4WiUOVSYmeGLU4jOv9/cpHJF1/13/p72ZYCEsjv1VrT53KhyiP6vhkxyQSTpczZa++3DZuL84F5cn2y5qFu5ZPQxbfiH2k61SlG6C4eG0r5koGIl1WFEPRLoGDqgSSeaooNK1AG5n+QPaUbBCN/vuJu6EbxslkuFJB3qbg7i/QaQBH8X3hUjeNWqKzWtoX/xiyArIuuU4rUzWyQgaie0/z0dIMCdudK1skCCIcvraNUY1I5LS8vaoz3vnxflhuNYnJpAeIUhJuUOSS4EnozKH4bNybFFHYov2g/BbOD/sno7BsM7Ac7UU449HPcHXksRvKM6Nb0tfW2v2uc2hJRn8E6FOb8P4MR1PkiCvTO+jGWCKSClf4Fpk8naTFGCsNWLUlo7gReDKT4nMW3mQXrkO2/IlOFzmz3Je355Jwb4BoA/4SbsRT8pSFRXCx6XSEM4+avenaP/uvcXfQgGcpqQt6+oDSglmu3zXN6G8zgzvYqUeVQ+Ak3eXecVG7Q3zsrmOEQC1r7QpbVGzVe01r9EJideOG9OfW2TAabpWzbfvaX8nKiUwJYOateiT+DwOPpCti5OKQs2y/ZRppxBw5ZFMNOLtJbaLiIj7nSw4/gn</eBayAuthToken>
+                </RequesterCredentials>
+                '. $picture_tags .'
+            </UploadSiteHostedPicturesRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('UploadSiteHostedPictures');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return (array)$result->SiteHostedPictureDetails;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetDescriptionTemplates
+*/
+function ebayapi_getdescriptiontemplates($auth_token) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetDescriptionTemplatesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RequesterCredentials>
+                    <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+                </RequesterCredentials>
+            </GetDescriptionTemplatesRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetDescriptionTemplates');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        // Convert all objected results into array
+        $result = (array)$result;
+        $templates = array();
+        
+        foreach ($result['DescriptionTemplate'] as $template) {
+            $template = (array)$template;
+            $templates[] = $template;
+        }
+        
+        return $templates;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for AddItem
+*/
+function ebayapi_verifyadditem($auth_token, $title, $desc, $primary_cid, $secondary_cid, $starting_price, $handling_time, $listing_type, $listing_duration, $paypal_emailaddress, $picture_tags, $quantity, $shipping_service, $shipping_cost, $surcharge, $condition, $item_specifics, $site_info) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build params
+    if ($picture_tags) {
+        $picture_tags = '<PictureDetails>'. $picture_tags .'</PictureDetails>';
+    }
+    
+    if ($condition) {
+        $condition = '<ConditionID>'. $condition .'</ConditionID>';
+    }
+    
+    if (!$desc) {
+        $desc = 'No description given!';
+    }
+    
+    if ($secondary_cid) {
+        $secondary_cid = '<SecondaryCategory><CategoryID>'. $secondary_cid .'</CategoryID></SecondaryCategory>';
+    }
+
+//    if ($themeid) {
+//        $themeid = '<ListingDesigner><ThemeID>'. $themeid .'</ThemeID></ListingDesigner>';
+//    }
+    
+    if (!$shipping_cost) {$shipping_cost = 0;}
+    if (!$surcharge) {$surcharge = 0;}
+    
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <VerifyAddItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <Item ComplexType="ItemType">
+                <Title>'. $title .'</Title>
+                <Description><![CDATA['. $desc .']]></Description>
+            
+                <PrimaryCategory>
+                    <CategoryID>'. $primary_cid .'</CategoryID>
+                </PrimaryCategory>
+                '. $secondary_cid .'
+            
+                <StartPrice>'. $starting_price .'</StartPrice>
+
+                <PaymentMethods>PayPal</PaymentMethods>
+                <PayPalEmailAddress>'. $paypal_emailaddress .'</PayPalEmailAddress>
+                
+                <Quantity>'. $quantity .'</Quantity>
+
+                <ListingDuration>Days_'. $listing_duration .'</ListingDuration>
+                <ListingType>'. $listing_type .'</ListingType>
+                '. $condition .'
+
+                <CategoryMappingAllowed>true</CategoryMappingAllowed>
+                <Country>'. $site_info['country_code'] .'</Country>
+                <Currency>'. $site_info['currency'] .'</Currency>
+                <Site>'. $site_info['site_name'] .'</Site>
+                <PostalCode>'. $site_info['postalcode'] .'</PostalCode>
+
+                '. $picture_tags .'
+                '. $item_specifics .'
+
+                <DispatchTimeMax>'. $handling_time .'</DispatchTimeMax>
+
+                <ShippingDetails>
+                    <ShippingType>Flat</ShippingType>
+                    <ShippingServiceOptions>
+                        <ShippingServicePriority>1</ShippingServicePriority>
+                        <ShippingService>'. $shipping_service .'</ShippingService>
+                        <ShippingServiceCost>'. $shipping_cost .'</ShippingServiceCost>
+                        <ShippingServiceAdditionalCost>'. $surcharge .'</ShippingServiceAdditionalCost>
+                    </ShippingServiceOptions>
+                </ShippingDetails>
+
+                <ReturnPolicy>
+                    <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
+                    <RefundOption>MoneyBack</RefundOption>
+                    <ReturnsWithinOption>Days_30</ReturnsWithinOption>
+                    <Description>N/A</Description>
+                    <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
+                </ReturnPolicy>
+            </Item>
+            </VerifyAddItemRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('VerifyAddItem', $site_info['site_id']);
+    
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        $output = array();
+        $output['message'] = $result->Message;
+        $output['fees'] = (array)$result->Fees;
+        
+        return $output;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for AddItem
+*/
+function ebayapi_additem($auth_token, $title, $desc, $primary_cid, $secondary_cid, $starting_price, $handling_time, $listing_type, $listing_duration, $paypal_emailaddress, $picture_tags, $quantity, $shipping_service, $shipping_cost, $surcharge, $condition, $item_specifics, $site_info) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build params
+    if ($picture_tags) {
+        $picture_tags = '<PictureDetails>'. $picture_tags .'</PictureDetails>';
+    }
+    
+    if ($condition) {
+        $condition = '<ConditionID>'. $condition .'</ConditionID>';
+    }
+    
+    if (!$desc) {
+        $desc = 'No description given!';
+    }
+    
+    if ($secondary_cid) {
+        $secondary_cid = '<SecondaryCategory><CategoryID>'. $secondary_cid .'</CategoryID></SecondaryCategory>';
+    }
+
+    if (!$shipping_cost) {$shipping_cost = 0;}
+    if (!$surcharge) {$surcharge = 0;}
+
+//    if ($themeid) {
+//        $themeid = '<ListingDesigner><ThemeID>'. $themeid .'</ThemeID></ListingDesigner>';
+//    }
+    
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <AddItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <Item ComplexType="ItemType">
+                <Title>'. $title .'</Title>
+                <Description><![CDATA['. $desc .']]></Description>
+            
+                <PrimaryCategory>
+                    <CategoryID>'. $primary_cid .'</CategoryID>
+                </PrimaryCategory>
+                '. $secondary_cid .'
+            
+                <StartPrice>'. $starting_price .'</StartPrice>
+
+                <PaymentMethods>PayPal</PaymentMethods>
+                <PayPalEmailAddress>'. $paypal_emailaddress .'</PayPalEmailAddress>
+                
+                <Quantity>'. $quantity .'</Quantity>
+
+                <ListingDuration>Days_'. $listing_duration .'</ListingDuration>
+                <ListingType>'. $listing_type .'</ListingType>
+                '. $condition .'
+
+                <CategoryMappingAllowed>true</CategoryMappingAllowed>
+                <Country>'. $site_info['country_code'] .'</Country>
+                <Currency>'. $site_info['currency'] .'</Currency>
+                <Site>'. $site_info['site_name'] .'</Site>
+                <PostalCode>'. $site_info['postalcode'] .'</PostalCode>
+
+                '. $picture_tags .'
+                '. $item_specifics .'
+
+                <DispatchTimeMax>'. $handling_time .'</DispatchTimeMax>
+
+                <ShippingDetails>
+                    <ShippingType>Flat</ShippingType>
+                    <ShippingServiceOptions>
+                        <ShippingServicePriority>1</ShippingServicePriority>
+                        <ShippingService>'. $shipping_service .'</ShippingService>
+                        <ShippingServiceCost>'. $shipping_cost .'</ShippingServiceCost>
+                        <ShippingServiceAdditionalCost>'. $surcharge .'</ShippingServiceAdditionalCost>
+                    </ShippingServiceOptions>
+                </ShippingDetails>
+
+                <ReturnPolicy>
+                    <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
+                    <RefundOption>MoneyBack</RefundOption>
+                    <ReturnsWithinOption>Days_30</ReturnsWithinOption>
+                    <Description>N/A</Description>
+                    <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
+                </ReturnPolicy>
+            </Item>
+            </AddItemRequest>';
+
+    dsm($xml);
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('AddItem', $site_info['site_id']);
+    
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    dsm(snasolutions_object_to_array($result));
+    
+    if ($result->Ack == 'Success') {
+        $output = array();
+        $output['item_id'] = (int)$result->ItemID;
+        $output['fees'] = (array)$result->Fees;
+        
+        return $output;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GeteBayDetails
+* $details_name, for example, ShippingServiceDetails
+*/
+function ebayapi_getebaydetails($auth_token, $details_name) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GeteBayDetailsRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RequesterCredentials>
+                    <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+                </RequesterCredentials>
+                <DetailName>'. $details_name .'</DetailName>
+            </GeteBayDetailsRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GeteBayDetails');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return _ebayapi_object_to_array($result);
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function retrieve auth token id (this must be called only after the consent flow is done)
+*/
+function ebayapi_fetchtoken($session_id) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <FetchTokenRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <SessionID>'. $session_id .'</SessionID>
+            </FetchTokenRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('FetchToken');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return $result->eBayAuthToken;
+    }else{
+        return '';
+    }
+}
+
+/**
+* Wrapper for GetItem
+*/
+function ebayapi_getitem($auth_token, $item_id) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <ItemID>'. $item_id .'</ItemID>
+            <IncludeWatchCount>true</IncludeWatchCount>
+            <IncludeItemSpecifics>true</IncludeItemSpecifics>
+            </GetItemRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetItem');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return (array)$result->Item;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for EndItem
+*/
+function ebayapi_enditem($auth_token, $itemid) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <EndItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <ItemID ComplexType="ItemIDType">'. $item_id .'</ItemID>
+            <EndingReason EnumType="EndReasonCodeType">NotAvailable</EndingReason>
+            </EndItemRequest>';
+    
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('EndItem');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+    
+    if ($result->Ack == 'Success') {
+        return (array)$result;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetSellerList
+* $time - Array contains 4 time values; StartTimeTo, StartTimeFrom, EndTimeTo, EndTimeFrom
+* Format time should be for example 2011-03-01T00:00:00.000Z
+*/
+function ebayapi_getsellerlist($auth_token, $user_id, $items_per_page = 20, $page_per_request = 1, $time = array()) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    if ($user_id) {
+        $user_id = '<UserID>'. $user_id .'</UserID>';
+    }
+
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <Pagination ComplexType="PaginationType">
+                <EntriesPerPage>'. $items_per_page .'</EntriesPerPage>
+                <PageNumber>'. $page_per_request .'</PageNumber>
+            </Pagination>
+            '. $user_id .'
+            <EndTimeFrom>'. $time['EndTimeFrom'] .'</EndTimeFrom>
+            <EndTimeTo>'. $time['EndTimeTo'] .'</EndTimeTo>
+            <StartTimeFrom>'. $time['StartTimeFrom'] .'</StartTimeFrom>
+            <StartTimeTo>'. $time['StartTimeTo'] .'</StartTimeTo>
+            </GetSellerListRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetSellerList');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+
+    if ($result->Ack == 'Success') {
+        $returned_data = array();
+        $returned_data['PaginationResult'] = (array)$result->PaginationResult;
+        
+        $returned_data['ItemArray'] = array();
+        $item_array = (array)$result->ItemArray;
+        
+        if (!empty($item_array)) {
+            foreach ($item_array as $items) {
+                $items = (array)$items;
+                foreach ($items as $item) {
+                    $item = (array)$item;
+                    $item['ListingDetails'] = (array)$item['ListingDetails'];
+                    $returned_data['ItemArray'][] = (array)$item;
+                }
+            }
+        }
+        
+        $returned_data['Seller'] = (array)$result->Seller;
+        
+        return $returned_data;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetCategoryFeatures
+* Get all features of a category.
+* This is needed when adding item specific for listing or many other.
+*/
+function ebayapi_getcategoryfeatures($auth_token, $category_id) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+    
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetCategoryFeaturesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <CategoryID>'. $category_id .'</CategoryID>
+            </GetCategoryFeaturesRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetCategoryFeatures');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+
+    if ($result->Ack == 'Success') {
+        return (array)$result->FeatureDefinitions;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetCategorySpecifics
+* Get all features of a category.
+* This is needed when adding item specific for listing or many other.
+*/
+function ebayapi_getcategoryspecifics($auth_token, $category_id) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetCategorySpecificsRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            <CategorySpecific>
+            <CategoryID>'. $category_id .'</CategoryID>
+            </CategorySpecific>
+            </GetCategorySpecificsRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetCategorySpecifics');
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+
+    if ($result->Ack == 'Success') {
+        return (array)$result->Recommendations;
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetUser
+*/
+function ebayapi_getuser($auth_token) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+            </RequesterCredentials>
+            </GetUserRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetUser');
+
+    // Send request and return result
+    return ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+}
+
+/**
+* Wrapper function for GetUserProfile
+*/
+function ebayapi_getuserprofile($user_id) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+    
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetUserProfileRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <UserID>'. $user_id .'</UserID>
+            </GetUserProfileRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_header('GetUserProfile');
+
+    // Send request and return result
+    return ebayapi_send_request(SHOPPING_API_ENDPOINT, $headers, $xml);
+}
+
+/**
+* Wrapper function for GetCategories
+* $level_limit = 1 means stop at the current category level only, level = 2 will go to the children
+* $parent_id = -1 is root level (get all top category items)
+*/
+function ebayapi_getcategories($auth_token, $site_id, $parent_id, $level_limit = 1) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetCategoriesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RequesterCredentials>
+                    <eBayAuthToken>'. $auth_token .'</eBayAuthToken>
+                </RequesterCredentials>
+                <CategorySiteID>'. $site_id .'</CategorySiteID>
+                <LevelLimit>'. $level_limit .'</LevelLimit>
+                <CategoryParent>'. $parent_id .'</CategoryParent>
+                <DetailLevel>ReturnAll</DetailLevel>
+            </GetCategoriesRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_trading_header('GetCategories', $site_id);
+
+    // Send request and return result
+    $result = ebayapi_send_request(TRADING_API_ENDPOINT, $headers, $xml);
+
+    if ($result->Ack == 'Success') {
+        return _ebayapi_object_to_array($result);
+    }else{
+        return (array)$result->Errors;
+    }
+}
+
+/**
+* Wrapper function for GetCategoryInfo
+*/
+function ebayapi_getcategoryinfo($category_id, $site_id = 0) {
+    // Make sure keys exist
+    if (!ebayapi_params_checker()) return NULL;
+    
+    // Build XML
+    $xml = '<?xml version="1.0" encoding="utf-8"?>
+            <GetCategoryInfoRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <CategoryID>'. $category_id .'</CategoryID>
+                <IncludeSelector>ChildCategories</IncludeSelector>
+            </GetCategoryInfoRequest>';
+
+    // Build header for the method request
+    $headers = ebayapi_build_header('GetCategoryInfo', $site_id);
+
+    // Send request and return result
+    return ebayapi_send_request(SHOPPING_API_ENDPOINT, $headers, $xml);
+}
+
+/**
+ * Function to execute an xml doc (send request to web server service using curl)
+ */
+function ebayapi_send_request($endpoint, $headers, $xml) {
+    // Setup params
+    $ch = curl_init($endpoint);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $xml);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    // Execute and return result
+    $result = @curl_exec($ch);
+    curl_close($ch);
+
+    if($result === false) {
+        return false;
+    }else{
+        $xml_doc = simplexml_load_string($result);
+        return $xml_doc;
+    }
+}//ebayapi_send_request
+
+/**
+* Build header of the HTTP HEADERS
+*/
+function ebayapi_build_header($method_name, $site_id = 0) {
+    $headers = array(
+      'X-EBAY-API-CALL-NAME: '. $method_name,
+      'X-EBAY-API-SITEID: '. $site_id,
+      'X-EBAY-API-APP-ID: '. APP_ID,
+      'X-EBAY-API-VERSION: 515',
+      "X-EBAY-API-REQUEST-ENCODING: XML",
+      "X-EBAY-API-COMPATIBILITY-LEVEL: 685",
+      'Content-Type: text/xml;charset=utf-8',
+    );
+
+    return $headers;
+}
+
+/**
+* Build  header for trading end-point
+*/
+function ebayapi_build_trading_header($method_name, $site_id = 0) {
+    $headers = array(
+        'X-EBAY-API-CALL-NAME: '. $method_name,
+        'X-EBAY-API-DEV-NAME: '. DEV_ID,
+        'X-EBAY-API-APP-NAME: '. APP_ID,
+        'X-EBAY-API-CERT-NAME: '. CERT_ID,
+        'X-EBAY-API-SITEID: '. $site_id,
+        'X-EBAY-API-COMPATIBILITY-LEVEL: 685', 
+        'Content-Type: text/xml;charset=utf-8',
+    );
+    
+    return $headers;
+}
+
+/**
+* Verify keys before doing things
+*/
+function ebayapi_params_checker() {
+    if (!DEV_ID or !APP_ID or !CERT_ID or !RUNAME or !TRADING_API_ENDPOINT or !SHOPPING_API_ENDPOINT or !FINDING_API_ENDPOINT or !EBAY_SIGNIN_URL) {
+        drupal_set_message(t('Parameters are missing for eBay API module. Please go to '. l(t('Admin Settings'), 'admin/settings/ebay_api') .' to fix them.'), 'error');
+        return false;
+    }else{
+        return true;
+    }
+}
+
+/**
+* Helper function to convert all objects to arrays recursively
+*/
+function _ebayapi_object_to_array($item) {
+    // Return
+    if (!is_object($item) and !is_array($item)) {return $item;}
+    
+    // Convert
+    if (is_object($item)) {
+        $item = (array)$item;
+    }
+    
+    // All sub-items as well
+    $items = array();
+    foreach ($item as $key => $value) {
+        $items[$key] = _ebayapi_object_to_array($value);
+    }
+    
+    return $items;
+}
+
+
+/**
+* Testing page (use to test new made function)
+*/
+function ebayapi_test() {
+    // T4est to post a product nid 21
+//    $product = node_load(21);
+    $user_tokens = _ebay_auth_token_get_token(1);
+    //$user_tokens['tm01xx']['token']
+
+    // Process the picture in form of ['name'] => ['url']
+    //ebayapi_uploadsitehostedpictures($product->field_pictures, $user_tokens['tm01xx']['token'])
+    
+    //$result = ebayapi_additem($product, $user_tokens['tm01xx']['token']);
+        
+//    $category_features = ebayapi_getcategoryfeatures($user_tokens['tm01xx']['token'], 72179);
+//    dsm(ebayapi_getdescriptiontemplates($user_tokens['tm01xx']['token']));
+
+//    echo '<pre>';
+//    var_dump($category_features);
+//    echo '</pre>';
+
+    // 2011-03-01T00:00:00.000Z
+    //<EndTimeFrom>2011-03-01T00:00:00.000Z</EndTimeFrom>
+    //<EndTimeTo>2011-06-01T00:00:00.000Z</EndTimeTo>
+    //<StartTimeFrom>2011-03-01T00:00:00.000Z</StartTimeFrom>
+    //<StartTimeTo>2011-06-01T00:00:00.000Z</StartTimeTo>
+    $now = time();
+    $time['StartTimeTo'] = date('Y-m-d\T00:00:00.000\Z', $now);
+    $time['StartTimeFrom'] = date('Y-m-d\T00:00:00.000\Z', strtotime('-3 months', $now));
+    $time['EndTimeTo'] = date('Y-m-d\T00:00:00.000\Z', $now);
+    $time['EndTimeFrom'] = date('Y-m-d\T00:00:00.000\Z', strtotime('-3 months', $now));
+    
+    $listings =  ebayapi_getsellerlist($user_tokens['tm01xx']['token'], 'tm01xx', 20, 1, $time);
+    dsm($listings);
+    
+    return 'Test';
+}

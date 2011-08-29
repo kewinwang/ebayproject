@@ -1,0 +1,1133 @@
+<?php
+// $Id: ebay_listing.mobule ,v 1.0 2010/12/10 - tuan Exp $
+
+/**
+* Implement hook_perm
+*/
+function ebay_listing_perm() {
+    return array('publish product to eBay');
+}
+
+/**
+* Implement hook_menu
+*/
+function ebay_listing_menu() {
+   $items = array();
+    
+   // Add a link to user tab for auth token generation
+//   $items['node/%node/ebay_list_publish_form'] = array(
+//     'title' => t('Sell on eBay'),
+//     'page callback' => 'drupal_get_form',
+//     'page arguments' => array('ebay_list_publish_form'),
+//     'access arguments' => array('publish product to eBay'),
+//     'weight' => 1,
+//     'type' => MENU_LOCAL_TASK,
+//   );
+
+   // Check ebay category specifics
+   $items['ebay_listing/category_specifics'] = array(
+      'title' => 'Get ebay category specifics',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('ebay_listing_category_specifics_form'),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK,
+   );
+
+   $items['ebay_listing/category_specifics/%'] = array(
+      'title' => 'Get ebay category specifics',
+      'page callback' => 'ebay_listing_category_specifics',
+      'page arguments' => array(2),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK,
+   );
+   
+   $items['ebay_listing/preview/%node/%'] = array(
+      'title' => 'Preview product description template',
+      'page callback' => 'ebay_listing_product_preview',
+      'page arguments' => array(2, 3),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK,
+   );   
+   
+   return $items;
+}
+
+/**
+* Preview a product
+*/
+function ebay_listing_product_preview($node, $theme_id) {
+    if (!is_object($node) or !$theme_id) {die("Invalid data!");}
+    
+    // Get theme list
+    $themes = _ebay_listing_get_theme();
+    if (!$themes[$theme_id]) {
+        die("Template is not found.");
+    }
+
+    // Get the template content
+    $xml = simplexml_load_string("<?xml version=\"1.0\" encoding=\"utf-8\" ?><root>". $themes[$theme_id]['TemplateXML'] ."</root>");
+    //dsm($xml);
+    if (!is_object($xml)) {
+        die("Could not load XML object.");
+    }
+    
+    // Get content
+    $xml->ThemeUserContent = $node->body;
+    
+    $output = '';
+    $output .= '<h1>'. $node->title .'</h1>';
+    $output .= '<div id="table-wrapper">';
+    $output .= $xml->ThemeTop;
+    $output .= $xml->ThemeUserCellTop;
+    $output .= $xml->ThemeUserContent;
+    $output .= $xml->ThemeUserCellBottom;
+    $output .= $xml->ThemeBottom;
+    $output .= '</div>';
+    
+    return $output;
+}
+
+/**
+* eBay category specifics form
+*/
+function ebay_listing_category_specifics_form() {
+    $form = array();
+    
+    $form['category_checker_group'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Enter an eBay category id'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+    );
+
+    $form['category_checker_group']['category_id'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Category id'),
+        '#required' => true,
+    );
+    
+    $form['category_checker_group']['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('View category specifics'),
+        '#attributes' => array('target' => '_blank'),
+    );
+        
+    return $form;
+}
+
+/**
+* eBay category specifics
+*/
+function ebay_listing_category_specifics_form_submit($form, &$form_state) {
+    drupal_goto('ebay_listing/category_specifics/'. $form_state['values']['category_id']);
+}
+
+/**
+* Showing category specifics table
+*/
+function ebay_listing_category_specifics($category_id) {
+    $user_tokens = _ebay_auth_token_get_token(1);
+    $category_specifics = ebayapi_getcategoryspecifics($user_tokens['tm01xx']['token'], $category_id);
+    
+    // Format a table
+    $header = array(t('Name'), t('Recommneded Value'));
+    $rows = array();
+    
+    if ($category_specifics['NameRecommendation']) {
+        foreach ($category_specifics['NameRecommendation'] as $recomm) {
+            $recomm = (array)$recomm;
+            $row = array();
+            $row[] = $recomm['Name'];
+            $values = array();
+        
+            foreach ($recomm['ValueRecommendation'] as $value) {
+                $value = (array)$value;
+                $values[] = $value['Value'];
+            }
+        
+            $row[] = join('<br />', $values);
+            $rows[] = $row;
+        }
+    }
+    else{
+        $rows[] = array(array('data' => t('No specific requirements found for this category. You could input any custom fields as you like.'), 'colspan' => 2));
+    }
+    
+    return theme_table($header, $rows);
+}
+
+/**
+* Sell on ebay (publish to ebay) form
+*/
+function ebay_list_publish_form() {
+    // Get the product node
+    $nid = arg(1);
+    if (!is_numeric($nid)) {
+        drupal_set_message(t('Product id not found.'), 'error');
+        return array();
+    }
+    
+    $product = node_load($nid);
+    if (!$product) {
+        drupal_set_message(t('Product not found.'), 'error');
+        return array();
+    }
+
+    // Get the user profile and user ebay token id
+    global $user;
+    $user_tokens = _ebay_auth_token_get_token($user->uid);
+    
+    // Build the form for publishing
+    $form = array();
+    
+    // eBay token id
+    $user_tokens_list = array(0 => t('- Please select'));
+    if (!empty($user_tokens)) {
+        foreach ($user_tokens as $token_id => $token_values) {
+            $user_tokens_list[$token_id] = $token_id .' - Updated: '. $token_values['updated'];
+        }
+    }
+    
+    // Get the ebay publishing details for this product if exist
+    $ebay_listing = _ebay_listing_get($product->nid);
+    
+    // Node and token id
+    $form['nid'] = array(
+        '#type' => 'hidden',
+        '#value' => $product->nid,
+    );
+
+    $form['token_id'] = array(
+        '#type' => 'select',
+        '#title' => t('eBay User token id'),
+        '#options' => $user_tokens_list,
+        '#description' => t('Visit your '. l('eBay user token ids list', 'user/'. $user->uid .'/ebay_auth_token') .' for update if needed.'),
+    );
+    
+    // Categories
+    $categories_list = array(0 => t('- Please select'));
+    if (!empty($product->field_ebay_categories)) {
+        foreach ($product->field_ebay_categories as $category_id) {
+            // Get the category object
+            $category = _ebay_category_mapping_db_get_by_categoryid($category_id['value']);
+            if (!$category) {
+                $category = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($category_id['value']));
+            }
+            
+            $categories_list[$category_id['value']] = $category[$category_id['value']]['CategoryName'];
+        }
+    }
+    
+    $form['category_selection'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Select categories'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+    );
+    
+    $form['category_selection']['primary_category'] = array(
+        '#type' => 'select',
+        '#title' => t('Primary category'),
+        '#options' => $categories_list,
+        '#default_value' => $ebay_listing->primary_category,
+        '#required' => true,
+        '#description' => t('The list contains categories those the product is being listed only. '. l('Update it', 'node/'. $product->nid .'/edit') .' if needed.'),
+    );
+
+    $form['category_selection']['secondary_category'] = array(
+        '#type' => 'select',
+        '#title' => t('Secondary category'),
+        '#options' => $categories_list,
+        '#default_value' => $ebay_listing->secondary_category,
+        '#description' => t('The list contains categories those the product is being listed only. '. l('Update it', 'node/'. $product->nid .'/edit') .' if needed.'),
+    );    
+    
+    // Listing type
+    $form['listing_type_group'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Listing type'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+    );
+    
+    $form['listing_type_group']['listing_type'] = array(
+        '#type' => 'radios',
+        '#default_value' => $ebay_listing->listing_type ? $ebay_listing->listing_type : 'Standard Fixed Price',
+        '#options' => array('Standard Auction' => t('Standard Auction'), 'Standard Fixed Price' => t('Standard Fixed Price')),
+    );
+    
+    $form['listing_type_group']['auction_group'] = array(
+        '#type' => 'fieldset',
+        '#collapsible' => false,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'auction_group'),
+    );
+
+    $form['listing_type_group']['auction_group']['auction_starting_price'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Starting price'),
+        '#default_value' => $ebay_listing->auction_starting_price ? $ebay_listing->auction_starting_price : round($product->sell_price, 2),
+        '#required' => true,
+    );
+
+    $form['listing_type_group']['auction_group']['auction_price'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Buy now price'),
+        '#default_value' => $ebay_listing->auction_price ? $ebay_listing->auction_price : round($product->sell_price, 2),
+        '#required' => true,
+    );
+
+    $form['listing_type_group']['auction_group']['auction_quantity'] = array(
+        '#type' => 'hidden',
+        //'#default_value' => $ebay_listing->auction_quantity ? $ebay_listing->auction_quantity : 1,
+        '#default_value' => 1,
+    );
+
+    $form['listing_type_group']['auction_group']['auction_duration'] = array(
+        '#type' => 'select',
+        '#title' => t('Duration'),
+        '#options' => array(3 => '3 days', 5 => '5 days', 7 => '7 days', 10 => '10 days'),
+        '#default_value' => $ebay_listing->auction_duration ? $ebay_listing->auction_duration : 3,
+        '#description' => t('Select one of valid the eBay duration values. '. l('Visit here', 'https://ebay.custhelp.com/app/answers/detail/a_id/426', array('attributes' => array('target' => '_blank'))) .' for more info.'),
+        //'#suffix' => t('days'),
+    );
+    
+    $form['listing_type_group']['fixedprice_group'] = array(
+        '#type' => 'fieldset',
+        '#collapsible' => false,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'fixedprice_group'),
+    );
+
+    $form['listing_type_group']['fixedprice_group']['fixedprice_price'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Buy now price'),
+        '#default_value' => $ebay_listing->fixedprice_price ? $ebay_listing->fixedprice_price : round($product->sell_price, 2),
+        '#required' => true,
+    );
+
+    $form['listing_type_group']['fixedprice_group']['fixedprice_quantity'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Quantity'),
+        '#default_value' => $ebay_listing->fixedprice_quantity ? $ebay_listing->fixedprice_quantity : 1,
+    );
+
+    $form['listing_type_group']['fixedprice_group']['fixedprice_duration'] = array(
+        '#type' => 'select',
+        '#title' => t('Duration'),
+        '#options' => array(3 => '3 days', 5 => '5 days', 7 => '7 days', 10 => '10 days', 30 => '30 days'),
+        '#default_value' => $ebay_listing->fixedprice_duration ? $ebay_listing->fixedprice_duration : 3,
+        '#description' => t('Select one of valid the eBay duration values. '. l('Visit here', 'https://ebay.custhelp.com/app/answers/detail/a_id/426', array('attributes' => array('target' => '_blank'))) .' for more info.'),
+        //'#suffix' => t('days'),
+    );
+    
+    // Payment method
+    $form['payment_settings'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Payment settings'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+    );
+
+    $form['payment_settings']['paypal_email'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Paypal email address'),
+        '#default_value' => $ebay_listing->paypal_email ? $ebay_listing->paypal_email : $user->mail,
+        '#required' => true,
+    );
+    
+    // Shipping method
+    $form['shipping_group'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Shipping methods'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'shipping_group'),
+    );
+    
+    $form['shipping_group']['shipping_method'] = array(
+        '#type' => 'radios',
+        '#default_value' => $ebay_listing->shipping_method ? $ebay_listing->shipping_method : 'Domestic Shipping',
+        '#options' => array('Domestic Shipping' => t('Domestic Shipping'), 'International Shipping' => t('International Shipping')),
+    );
+
+    $form['shipping_group']['domestic_shipping_group'] = array(
+        '#type' => 'fieldset',
+        '#collapsible' => false,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'domestic_shipping_group'),
+    );
+    
+    $form['shipping_group']['domestic_shipping_group']['domestic'] = array(
+        '#value' => _ebay_listing_domestic_shipping_group(unserialize($ebay_listing->shipping_domestic)),
+    );
+    
+    $form['shipping_group']['international_shipping_group'] = array(
+        '#type' => 'fieldset',
+        '#collapsible' => false,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'international_shipping_group'),
+    );
+
+    $form['shipping_group']['international_shipping_group']['international'] = array(
+        '#value' => _ebay_listing_international_shipping_group(unserialize($ebay_listing->shipping_international)),
+    );
+    
+    // Handling time
+    $form['shipping_group']['handling_time'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Handling time'),
+        '#default_value' => $ebay_listing->handling_time ? $ebay_listing->handling_time : 1,
+        '#suffix' => t('days'),
+        '#required' => true,
+    );
+
+    // Listing site
+    $form['listing_site'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Where to list'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'listing_site_group'),
+    );
+    
+    $form['listing_site']['ebay_site'] = array(
+        '#type' => 'select',
+        '#title' => t('eBay marketing site'),
+        '#options' => array(0 => 'US', 3 => 'UK', 15 => 'AU'),
+        '#default_value' => $ebay_listing->ebay_site ? $ebay_listing->ebay_site : 0,
+    );
+
+    // Other
+    $form['other'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Other'),
+        '#collapsible' => true,
+        '#collapsed' => false,
+        '#attributes' => array('class' => 'other_group'),
+    );
+    
+    // Get theme list
+    $themes = _ebay_listing_get_theme();
+    $theme_options = array();
+    $theme_thumbail = array();
+    $theme_thumbail['ebay_listing'] = array();
+    foreach ($themes as $id => $theme) {
+        $theme_options[$id] = $theme['Name'] .' ('. $id .')';
+        $theme_thumbail['ebay_listing'][$id] = $theme['ImageURL'];
+    }
+        
+    // Add to Drupal settings
+    drupal_add_js($theme_thumbail, 'setting');
+    
+    $form['other']['themeid'] = array(
+        '#type' => 'select',
+        '#title' => t('Select eBay template'),
+        '#options' => $theme_options,
+        '#default_value' => $ebay_listing->themeid ? $ebay_listing->themeid : 0,
+        '#suffix' => '<div id="product-preview"><table border="0"><tr><td id="theme_thumbnail" align="center"></td></tr><tr><td align="center"><a href="#" id="preview" target="_blank">Preview</a></td></tr></table></div>',
+    );
+    
+    // Submit button
+    $form['save_and_exit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Save only'),
+    );
+    
+    $form['save_and_listing'] = array(
+        '#type' => 'submit',
+        '#value' => t('Save and Publish to eBay now'),
+    );
+    
+    return $form;
+}
+
+/**
+* Publish to ebay form validate
+*/
+function ebay_list_publish_form_validate($form, &$form_state) {
+    // Token id if publish to ebay
+    if ($form_state['values']['op'] == 'Save and Publish to eBay now') {
+        if (!$form_state['values']['token_id']) {
+            form_set_error('token_id', t('Please select an eBay user token id in order to publish the product to eBay site.'));
+        }
+    }
+
+    // Primary category
+    if (!$form_state['values']['primary_category']) {
+        form_set_error('primary_category', t('Please select a primary category for the product to be listed.'));
+    }
+
+    // Quantity must be 1 or greater
+    if ($form_state['values']['listing_type'] == 'Standard Fixed Price') {
+        if ($form_state['values']['fixedprice_quantity'] < 1) {
+            form_set_error('fixedprice_quantity', t('Quantity must not be less than 1.'));
+        }
+    }    
+}
+
+/**
+* Publish to ebay form submit
+*/
+function ebay_list_publish_form_submit($form, &$form_state) {
+    // Convert from_state to object
+    $product = (object)$form_state['values'];
+    
+    // Collect shipping values
+    $shipping_domestic = array();
+    $shipping_international = array();
+    
+    foreach ($form_state['clicked_button']['#post']['domestic_type'] as $index => $value) {
+        if (!isset($form_state['clicked_button']['#post']['domestic_free'][$index])) {
+            $form_state['clicked_button']['#post']['domestic_free'][$index] = 0;
+        }
+        
+        $shipping_domestic[] = array(
+            'type' => $form_state['clicked_button']['#post']['domestic_type'][$index],
+            'cost' => $form_state['clicked_button']['#post']['domestic_cost'][$index],
+            'surcharge' => $form_state['clicked_button']['#post']['domestic_surcharge'][$index],
+            'free' => $form_state['clicked_button']['#post']['domestic_free'][$index],
+        );
+    }
+
+    foreach ($form_state['clicked_button']['#post']['international_type'] as $index => $value) {
+        if (!isset($form_state['clicked_button']['#post']['international_free'][$index])) {
+            $form_state['clicked_button']['#post']['international_free'][$index] = 0;
+        }
+        
+        $shipping_international[] = array(
+            'type' => $form_state['clicked_button']['#post']['international_type'][$index],
+            'cost' => $form_state['clicked_button']['#post']['international_cost'][$index],
+            'location' => $form_state['clicked_button']['#post']['international_location'][$index],
+            'free' => $form_state['clicked_button']['#post']['international_free'][$index],
+        );
+    }
+
+    $product->shipping_domestic = serialize($shipping_domestic);
+    $product->shipping_international = serialize($shipping_international);
+    
+    $result = _ebay_listing_save($product);
+
+    if ($result == SAVED_NEW) {
+        drupal_set_message(t('eBay publishing details have been created successfuly.'));
+    }
+    else if ($result == SAVED_UPDATED) {
+        drupal_set_message(t('eBay publishing details have been updated successfuly.'));    
+    }
+    else{
+        drupal_set_message(t('Failed to save the details'), 'error');
+    }
+    
+    if ($result and $form_state['values']['op'] == 'Save and Publish to eBay now') {
+        // Publish to eBay
+        ebay_list_publish($product);
+    }
+}
+
+/**
+* Publish a product to eBay
+*/
+function ebay_list_publish($product) {
+    // Get ebay user token string
+    $auth_token = '';
+    if ($product->token_id) {
+        $auth_token = _ebay_auth_token_get_token_by_token_id($product->token_id);
+	//drupal_set_message(t($product->token_id), 'warning');
+    }
+    $auth_token='AgAAAA**AQAAAA**aAAAAA**5dsTTg**nY+sHZ2PrBmdj6wVnY+sEZ2PrA2dj6wGlougAJmHpgSdj6x9nY+seQ**ePEAAA**AAMAAA**sBVtz4eBMvBjSZBb31LtEPJXOr9BkviLIIGmnXUDA/+a4SDIYJveFfA3i7x+mXyvDPdDdBuT4YjQpJhXRFcyGnnKqw+dtVrJ02ZUjsXwhBVg92AF5JBF6IIQvpCQxjZ4LNLyWne8TwcsUq2RcD1ahpvQBC0CS5ZkYBh4w1IiRvDJgOghhvl52XYcLKAfV1ebEQeAs4r7RWAYuX7oLO61P5WXy/hvd/EeIiXzYFsBA/PfCjdAbD2qrHOvxrofWygKPIdYCeJ2Y9MNZMwhsrcNM7R2qWBhyIn6v7b/hS2814ytZWFDpTdcxHrkCVtbVCLyAHwo0GZZd7QqY/47+BKqvddmADh3AZ455VnKAPLU87J81lI0GZcz8PJvc2LxUxH4RqykcJwe1z+mT90YSNsL7htQ5+LjV4T4bxKWFX3NW3v8jwvh5MzFS8LfTvDp9guloayH1PE3Q/RRO3pEH1mGyCKqoDqFFTJ8yhWkvg5vbBzcnOWSv82d3C1aUx+wufuHJp0A6raq9dCkDxwFrXWidsRynfDM/1jkmIYXvgaXLR6G5rmBtJzXvgIAoLitUEzOZFZfztzjknXe989csxe/pkl1dQfwzP4t4zUGQmhwQlwiWl+4BkRp6d2xxN6mU8VIbCDb7yqjBHK8iJEx98c/UX9BSk+q0l11Ja7Gf1ncnRz+gySymU59z3/qfLP0uIuYzOHB7c+aMxCmeeIN8/GKRaZGuePNt3POLc9Xiv221AoOR1XeEH4jcN9fMV74ZlBi';
+    if (!$auth_token) {
+        drupal_set_message(t('eBay user auth token string not found.'), 'error');
+        return;
+    }
+    
+    // Process some parameters
+    $product_node = node_load($product->nid);
+
+    // Categories
+    $product->primary_category = $product_node->field_ebay_categories[0]['value'];
+    $product->secondary_category = ''; // for now
+
+    // Upload image to ebay site
+    $picture_tags = '';
+    if ($product_node->field_image_cache[0]['fid']) {
+        $image_upload_result = ebayapi_uploadsitehostedpictures($auth_token, _ebay_listing_generate_picture_tags_for_upload($product_node->field_image_cache));
+        
+        if ($image_upload_result['ErrorCode']) {
+            drupal_set_message(t('Product picture could not be uploaded.'), 'warning');
+            drupal_set_message($image_upload_result['LongMessage']. 'and stuff', 'warning');
+        }
+        else{
+            $picture_tags = _ebay_listing_generate_picture_tags_for_listing($product_node->field_image_cache);
+        }
+    }
+
+    // Get listing type for pricing
+    if ($product->listing_type == 'Standard Fixed Price') {
+        $starting_price = $product->fixedprice_price;
+        $quantity = $product->fixedprice_quantity;
+        $listing_duration = $product->fixedprice_duration;
+        $listing_type = 'FixedPriceItem';
+    }
+    else if ($product->listing_type == 'Standard Auction'){
+        $starting_price = $product->auction_starting_price;
+        $selling_price = $product->auction_price;
+        $quantity = $product->auction_quantity;
+        $listing_duration = $product->auction_duration;
+        $listing_type = 'Chinese';
+    }
+    
+    // Shipping service name
+    $shipping_service = _ebay_listing_get_shipping_details($product->ebay_site);
+
+    // Shipping methods
+    $surcharge = 0;    
+    if ($product->shipping_method == 'Domestic Shipping') {
+        if ($product->domestic_free) {
+            $shipping_cost = 0; // Free cost
+        }
+        else {
+            $shipping_cost = $product->domestic_cost;
+            $surcharge = $product->domestic_surcharge;
+        }
+    }
+    else if ($product->shipping_method == 'International Shipping') {
+        if ($product->international_free) {
+            $shipping_cost = 0; // Free cost
+        }
+        else{
+            $shipping_cost = $product->international_cost;
+        }
+    }
+
+    // Get category features (requires)
+    $category_features = ebayapi_getcategoryfeatures($auth_token, $product->primary_category);
+    
+    // Check condition
+    //dsm(snasolutions_object_to_array($category_features));
+    if (isset($category_features['ConditionEnabled'])) {
+        $condition = 1000; // Brand new
+    }
+    else{
+        $condition = '';
+    }
+    
+    // Collect item specifics if any and allowed (we check primary category only)
+    $item_specifics = '';
+    if (!isset($category_features['ItemSpecificsEnabled'])) {
+        if (count($product_node->field_customfield_name)) {
+            $category = _ebay_category_mapping_db_get_by_categoryid($product->primary_category);
+            if (!$category) {
+                $category = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($product->primary_category));
+            }
+            
+            $category_name = $category[$product->primary_category]['CategoryName'];
+
+            drupal_set_message(t('This category %category_name does not allow item specifics included in the listing.', array('%category_name' => $category_name)), 'warning');
+        }
+    }
+    else{
+        // Collect item specifics
+        if ($product_node->field_customfield_name) {
+            $item_specifics .= '<ItemSpecifics>';
+            foreach ($product_node->field_customfield_name as $index => $values) {
+                $item_specifics .= '<NameValueList>';
+                $item_specifics .= '<Name>'. $product_node->field_customfield_name[$index]['value'] .'</Name>';
+                $item_specifics .= '<Value>'. $product_node->field_customfield_value[$index]['value'] .'</Value>';
+                $item_specifics .= '</NameValueList>';
+            }
+            
+            $item_specifics .= '</ItemSpecifics>';
+        }
+    }
+
+    // Get site location info
+    $site_info = _ebay_listing_get_site_info_by_id($product->ebay_site);
+    $site_info['ebay_site'] = $product->ebay_site;
+    
+    // Publish to eBay
+    $result = ebayapi_additem($auth_token, $product_node->title, $product_node->body, $product->primary_category, $product->secondary_category, $starting_price, $product->handling_time, $listing_type, $listing_duration, $product->paypal_email, $picture_tags, $quantity, $shipping_service, $shipping_cost, $surcharge, $condition, $item_specifics, $site_info);
+
+    // Report
+    if ($result['item_id']) {
+        drupal_set_message(t('The product (eBay listing id: '. $result['item_id'] .') has been succesfully listed on eBay.'));
+    }
+    else{
+        drupal_set_message(t('Publishing to eBay got error: "'. (string)$result['LongMessage'] .'"'), 'error');
+    }
+}
+
+/**
+* Get estimated fees by doing a verifyadditem
+*/
+function ebay_list_get_estimated_fees($product) {
+    // Get ebay user token string
+    $auth_token = '';
+    if ($product->token_id) {
+        $auth_token = _ebay_auth_token_get_token_by_token_id($product->token_id);
+    }
+    
+    if (!$auth_token) {
+        drupal_set_message(t('eBay user auth token string not found.'), 'error');
+        return;
+    }
+        
+    // Process some parameters
+    $product_node = node_load($product->nid);
+
+    // Categories
+    $product->primary_category = $product_node->field_ebay_categories[0]['value'];
+    $product->secondary_category = ''; // for now
+
+    // Upload image to ebay site
+    $picture_tags = '';
+    if ($product_node->field_image_cache[0]['fid']) {
+        $image_upload_result = ebayapi_uploadsitehostedpictures($auth_token, _ebay_listing_generate_picture_tags_for_upload($product_node->field_image_cache));
+        
+        if ($image_upload_result['ErrorCode']) {
+            drupal_set_message(t('Product picture could not be uploaded.'), 'warning');
+            drupal_set_message($image_upload_result['LongMessage'], 'warning');
+        }
+        else{
+            $picture_tags = _ebay_listing_generate_picture_tags_for_listing($product_node->field_image_cache);
+        }
+    }
+
+    // Get listing type for pricing
+    if ($product->listing_type == 'Standard Fixed Price') {
+        $starting_price = $product->fixedprice_price;
+        $quantity = $product->fixedprice_quantity;
+        $listing_duration = $product->fixedprice_duration;
+        $listing_type = 'FixedPriceItem';
+    }
+    else if ($product->listing_type == 'Standard Auction'){
+        $starting_price = $product->auction_starting_price;
+        $selling_price = $product->auction_price;
+        $quantity = $product->auction_quantity;
+        $listing_duration = $product->auction_duration;
+        $listing_type = 'Chinese';
+    }
+
+    // Shipping service name
+    $shipping_service = _ebay_listing_get_shipping_details($product->ebay_site);
+    
+    // Shipping methods
+    $surcharge = 0;
+    if ($product->shipping_method == 'Domestic Shipping') {
+        if ($product->domestic_free) {
+            $shipping_cost = 0; // Free cost
+        }
+        else {
+            $shipping_cost = $product->domestic_cost;
+            $surcharge = $product->domestic_surcharge;
+        }
+    }
+    else if ($product->shipping_method == 'International Shipping') {
+        if ($product->international_free) {
+            $shipping_cost = 0; // Free cost
+        }
+        else{
+            $shipping_cost = $product->international_cost;
+        }
+    }
+
+    // Get category features (requires)
+    $category_features = ebayapi_getcategoryfeatures($auth_token, $product->primary_category);
+    
+    // Check condition
+    if (isset($category_features['ConditionEnabled'])) {
+        $condition = 1000; // Brand new
+    }
+    else{
+        $condition = '';
+    }
+    
+    // Collect item specifics if any and allowed (we check primary category only)
+    $item_specifics = '';
+    if (!isset($category_features['ItemSpecificsEnabled'])) {
+        if (count($product_node->field_customfield_name)) {
+            $category = _ebay_category_mapping_db_get_by_categoryid($product->primary_category);
+            if (!$category) {
+                $category = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($product->primary_category));
+            }
+            
+            $category_name = $category[$product->primary_category]['CategoryName'];
+
+            drupal_set_message(t('This category %category_name does not allow item specifics included in the listing.', array('%category_name' => $category_name)), 'warning');
+        }
+    }
+    else{
+        // Collect item specifics
+        if ($product_node->field_customfield_name) {
+            $item_specifics .= '<ItemSpecifics>';
+            foreach ($product_node->field_customfield_name as $index => $values) {
+                $item_specifics .= '<NameValueList>';
+                $item_specifics .= '<Name>'. $product_node->field_customfield_name[$index]['value'] .'</Name>';
+                $item_specifics .= '<Value>'. $product_node->field_customfield_value[$index]['value'] .'</Value>';
+                $item_specifics .= '</NameValueList>';
+            }
+            
+            $item_specifics .= '</ItemSpecifics>';
+        }
+    }
+    
+    // Get site location info
+    $site_info = _ebay_listing_get_site_info_by_id($product->ebay_site);
+    $site_info['ebay_site'] = $product->ebay_site;
+
+    // Publish to eBay
+    $result = ebayapi_verifyadditem($auth_token, $product_node->title, $product_node->body, $product->primary_category, $product->secondary_category, $starting_price, $product->handling_time, $listing_type, $listing_duration, $product->paypal_email, $picture_tags, $quantity, $shipping_service, $shipping_cost, $surcharge, $condition, $item_specifics, $site_info);
+    
+    return $result;
+}
+
+/**
+* Detect whether the details do exist
+*/
+function _ebay_listing_exists($id) {
+    return db_result(db_query("SELECT id FROM {ebay_listing} WHERE id=%d", $id));
+}
+
+/**
+* Get details of an ebay publishing by product node id
+*/
+function _ebay_listing_get($id) {
+    $result = db_query("SELECT * FROM {ebay_listing} WHERE id=%d", $id);
+    return db_fetch_object($result);
+}
+
+/**
+* Get all current template by uid
+*/
+function _ebay_get_listings_by_uid($uid) {
+    $results = db_query("SELECT * FROM {ebay_listing} WHERE uid=%d", $uid);
+    $listings = array();
+    while ($result = db_fetch_object($results)) {
+        $listings[] = $result;
+    }
+    
+    return $listings;
+}
+
+/**
+* Delete details of an ebay publishing by product node id
+*/
+function _ebay_listing_remove($id) {
+    db_query("DELETE FROM {ebay_listing} WHERE id=%d", $id);
+}
+
+/**
+* Store / update details of an ebay publishing
+*/
+function _ebay_listing_save(&$product) {
+    // Must have a uid
+    global $user;
+    if (!$user->uid) {return false;}
+    
+    // Decide whether to insert or update
+    if (_ebay_listing_exists($product->id)) {
+        // Update existing
+        $product->updated = time();
+        return drupal_write_record('ebay_listing', $product, 'id');
+    }
+    else{
+        // Create new
+        $now = time();
+        $product->created = $now;
+        $product->updated = $now;
+        $product->uid = $user->uid;
+        return drupal_write_record('ebay_listing', $product);
+    }
+}
+
+/**
+* Helper function used to generate picture tags for uploading
+* $pictures: is a CCK fielfield array of image
+*/
+function _ebay_listing_generate_picture_tags_for_upload($pictures) {
+    $picture_tags = '';
+    foreach ($pictures as $index => $values) {
+        $picture_tags .= '<ExternalPictureURL>http://'. $_SERVER['HTTP_HOST'] .'/'. $values['filepath'] .'</ExternalPictureURL>';
+        $picture_tags .= '<PictureName>'. $values['filename'] .'</PictureName>';
+        
+        // Limit to one image only
+        break;
+    }
+
+    return $picture_tags;
+}
+
+/**
+* Helper function used to genenrate picture tags for listing
+*/
+function _ebay_listing_generate_picture_tags_for_listing($pictures) {
+    $picture_tags = '';
+    if ($pictures) {
+        foreach ($pictures as $index => $values) {
+            $picture_tags .= '<PictureURL>http://'. $_SERVER['HTTP_HOST'] .'/'. $values['filepath'] .'</PictureURL>';
+        }
+    }
+
+    return $picture_tags;
+}
+
+/**
+* List of eBay sites available
+*/
+function _ebay_listing_get_ebay_sites() {
+    return array(
+        '15' => 'Australia',
+        '223' => 'China',
+        '0' => 'US',
+        '3' => 'UK',
+        '216' => 'Singapore',
+    );
+}
+
+/**
+* Get code by site id
+*/
+function _ebay_listing_get_site_info_by_id($site_id) {
+    $site_info = array(
+        '15'=> array('site_id' => '15', 'site_name' => 'Australia', 'country_code' => 'AU', 'currency' => 'AUD', 'postalcode' => '95125'),
+        '223' => array('site_id' => '223', 'site_name' => 'China', 'country_code' => 'CN', 'currency' => 'CNY', 'postalcode' => '95125'),
+        '0' => array('site_id' => '0', 'site_name' => 'US', 'country_code' => 'US', 'currency' => 'USD', 'postalcode' => '95125'),
+        '3' => array('site_id' => '3', 'site_name' => 'UK', 'country_code' => 'UK', 'currency' => 'GBP', 'postalcode' => '95125'),
+        '216' => array('site_id' => '216', 'site_name' => 'Singapore', 'country_code' => 'SG', 'currency' => 'SGD', 'postalcode' => '95125'),
+    );
+    
+    return $site_info[''. $site_id];
+}
+
+/**
+* Get shipping service name by site id
+*/
+function _ebay_listing_get_shipping_details($site_id) {
+    switch ($site_id) {
+        case '15': // Australia
+            return 'AU_Others';
+            
+        case '223': // China
+            return 'CN_Others';
+        
+        case '0': // US
+            return 'ShippingMethodStandard';
+        
+        case '3': // UK
+            return 'UK_Others';
+        
+        case '216': // Singapore
+            return 'SG_LocalPickUpOnly';
+    }
+}
+
+/**
+* Get eBay theme list
+*/
+function _ebay_listing_get_theme() {
+    $user_tokens = _ebay_auth_token_get_token(1);
+    $theme_list = ebayapi_getdescriptiontemplates($user_tokens['tm01xx']['token']);
+    if ($theme_list[0]['ID']) {
+        $theme_list_arr = array();
+        foreach ($theme_list as $theme) {
+            $theme_list_arr["". $theme['ID']] = $theme;
+        }
+        
+        return $theme_list_arr;
+    }
+    
+    return array();
+}
+
+/**
+* Build a group field for domestic shipping
+*/
+function _ebay_listing_domestic_shipping_group($shipping = array()) {
+    $domestic_types = _snasolutions_taxonomy_get_tree(24, 0, -1, 1);
+    
+    $form_output = '';
+    if ($shipping) {
+        foreach ($shipping as $index => $item) {
+            // Type
+            $domestic_type_html = '';
+            foreach ($domestic_types as $key => $value) {
+                if ($key == $item['type']) {
+                    $domestic_type_html .= '<option value="'. $key .'" selected="selected">'. $value .'</option>';
+                }
+                else{
+                    $domestic_type_html .= '<option value="'. $key .'">'. $value .'</option>';
+                }
+            }
+            
+            // Free
+            $domestic_free = '';
+            if ($item['free']) {
+                $domestic_free = 'checked="checked"';
+            }
+            
+            $form_output .= '
+                <div class="domestic_shipping_item item clear-block">
+                <div class="row">
+                    <label>Type:</label>
+                    <select name="domestic_type['. $index .']">
+                        <option value="">- Please select</option>
+                        '. $domestic_type_html .'
+                    </select>
+                </div>
+                <div class="row">
+                    <label>Cost:</label>
+                    <input type="text" name="domestic_cost['. $index .']" value="'. $item['cost'] .'" />
+                </div>
+                <div class="row">
+                    <label>Surcharge:</label>
+                    <input type="text" name="domestic_surcharge['. $index .']" value="'. $item['surcharge'] .'" />
+                </div>
+                <div class="row">
+                    <input type="checkbox" name="domestic_free['. $index .']" value="1" '. $domestic_free .' />Free
+                </div>
+                </div>';
+        }
+    }
+    else{
+        // No value yet
+        $domestic_type_html = '';
+        foreach ($domestic_types as $key => $value) {
+            $domestic_type_html .= '<option value="'. $key .'">'. $value .'</option>';
+        }
+
+        $index = 0;
+        $form_output .= '
+        <div class="domestic_shipping_item item clear-block">
+        <div class="row">
+            <label>Type:</label>
+            <select name="domestic_type['. $index .']">
+                <option value="">- Please select</option>
+                '. $domestic_type_html .'
+            </select>
+        </div>
+        <div class="row">
+            <label>Cost:</label>
+            <input type="text" name="domestic_cost['. $index .']" value="" />
+        </div>
+        <div class="row">
+            <label>Surcharge:</label>
+            <input type="text" name="domestic_surcharge['. $index .']" value="" />
+        </div>
+        <div class="row">
+            <input type="checkbox" name="domestic_free['. $index .']" value="1" />Free
+        </div>
+        </div>'; 
+    }
+    
+    $form_output .= '<div class="button"><input type="button" name="domestic_add_more" value="Add more item" class="shipping_add_more" /></div>';
+    
+    return '<fieldset class="domestic_shipping_item_holder"><legent></legent>'. $form_output .'</fieldset>';
+}
+
+/**
+* Build a group field for international shipping group
+*/
+function _ebay_listing_international_shipping_group($shipping = array()) {
+    $international_types = _snasolutions_taxonomy_get_tree(25, 0, -1, 1);
+    $international_locations = _snasolutions_taxonomy_get_tree(26, 0, -1, 1);
+
+    $form_output = '';
+    if ($shipping) {
+        foreach ($shipping as $index => $item) {
+            // Type
+            $international_type_html = '';
+            foreach ($international_types as $key => $value) {
+                if ($key == $item['type']) {
+                    $international_type_html .= '<option value="'. $key .'" selected="selected">'. $value .'</option>';
+                }
+                else{
+                    $international_type_html .= '<option value="'. $key .'">'. $value .'</option>';
+                }
+            }
+            
+            // Location
+            $international_location_html = '';
+            foreach ($international_locations as $key => $value) {
+                if ($key == $item['location']) {
+                    $international_location_html .= '<option value="'. $key .'" selected="selected">'. $value .'</option>';
+                }
+                else{
+                    $international_location_html .= '<option value="'. $key .'">'. $value .'</option>';
+                }
+            }
+            
+            // Free
+            $international_free = '';
+            if ($item['free']) {
+                $international_free = 'checked="checked"';
+            }
+            
+            $form_output .= '
+                <div class="international_shipping_item item clear-block">
+                <div class="row">
+                    <label>Type:</label>
+                    <select name="international_type['. $index .']">
+                        <option value="">- Please select</option>
+                        '. $international_type_html .'
+                    </select>
+                </div>
+                <div class="row">
+                    <label>Cost:</label>
+                    <input type="text" name="international_cost['. $index .']" value="'. $item['cost'] .'" />
+                </div>
+                <div class="row">
+                    <label>Location:</label>
+                    <select name="international_location['. $index .']">
+                    <option value="">- Please select</option>
+                    '. $international_location_html .'
+                    </select>
+                </div>
+                <div class="row">
+                    <input type="checkbox" name="international_free['. $index .']" value="1" '. $international_free .' />Free
+                </div>
+                </div>';
+        }
+    }
+    else{
+        // No value yet
+        // Type
+        $international_type_html = '';
+        foreach ($international_types as $key => $value) {
+            $international_type_html .= '<option value="'. $key .'">'. $value .'</option>';
+        }
+        
+        // Location
+        $international_location_html = '';
+        foreach ($international_locations as $key => $value) {
+            $international_location_html .= '<option value="'. $key .'">'. $value .'</option>';
+        }
+
+        $form_output = '
+        <div class="international_shipping_item item clear-block">
+        <div class="row">
+            <label>Type:</label>
+            <select name="international_type[0]">
+                <option value="">- Please select</option>
+                '. $international_type_html .'
+            </select>
+        </div>
+        <div class="row">
+            <label>Cost:</label>
+            <input type="text" name="international_cost[0]" value="" />
+        </div>
+        <div class="row">
+            <label>Location:</label>
+            <select name="international_location[0]">
+                <option value="">- Please select</option>
+                '. $international_location_html .'
+            </select>
+        </div>
+        <div class="row">
+            <input type="checkbox" name="international_free[0]" value="1" />Free
+        </div>
+        </div>';
+    }
+    
+    $form_output .= '<div class="button"><input type="button" name="international_add_more" value="Add more item" class="shipping_add_more" /></div>';
+
+    return '<fieldset class="international_shipping_item_holder"><legent></legent>'. $form_output .'</fieldset>';
+}

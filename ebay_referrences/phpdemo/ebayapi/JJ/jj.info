@@ -1,0 +1,4 @@
+; $Id:$
+name = JJ
+description = "A test page for JJ."
+core = "6.x"

@@ -1,0 +1,7 @@
+/* CSS for the ebayfield module - @created 09 Dec 2010 by Tuan */
+
+select.ebayfield_widget_list option.last-child {
+    background-color: #E6E6E6;
+    border-top: 1px solid gray;
+    z-index:1;
+}

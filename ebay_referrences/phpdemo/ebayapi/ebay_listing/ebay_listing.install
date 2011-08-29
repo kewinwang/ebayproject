@@ -1,0 +1,201 @@
+<?php
+// $Id$ ebay_listing.install
+
+/**
+ * Implementation of hook_schema().
+ */
+function ebay_listing_schema() {
+  $schema['ebay_listing'] = array(
+    'description' => t('The table that contains all eBay categories details'),
+    'fields' => array(
+      // Product id
+      'id' => array(
+        'description' => 'Primary id.',
+        'type' => 'serial',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'Creator user id.',
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => 'Template name.',
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      // Status
+      'status' => array(
+        'description' => 'Status which is enabled (1) or disabled (0).',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+      ),
+      // Create / Update
+      'created' => array(
+        'description' => 'Timestamp when the template firstly created.',
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'updated' => array(
+        'description' => 'Timestamp when the template updated.',
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      // Listing type
+      'listing_type' => array(
+        'description' => 'listing type which is either Auction or Fixed price.',
+        'type' => 'varchar',
+        'length' => 25,
+        'not null' => TRUE,
+      ),
+      
+      'auction_starting_price' => array(
+        'description' => 'Auction starting price.',
+        'type' => 'float',
+        'size' => 'big',
+        'not null' => TRUE,
+      ),
+      'auction_price' => array(
+        'description' => 'Auction price (Buy now price).',
+        'type' => 'float',
+        'size' => 'big',
+        'not null' => TRUE,
+      ),
+      'auction_quantity' => array(
+        'description' => 'Auction product quantity.',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => FALSE,
+      ),
+      'auction_duration' => array(
+        'description' => 'Auction duration.',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => FALSE,
+      ),
+      
+      'fixedprice_price' => array(
+        'description' => 'Fixed price (Buy now price).',
+        'type' => 'float',
+        'size' => 'big',
+        'not null' => TRUE,
+      ),
+      'fixedprice_quantity' => array(
+        'description' => 'Fixed price quantity.',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => FALSE,
+      ),
+      'fixedprice_duration' => array(
+        'description' => 'Fixed price duration.',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => FALSE,
+      ),
+      // Payment settings
+      'payment_type' => array(
+        'description' => 'Type of accepted payments.',
+        'type' => 'varchar',
+        'length' => 25,
+        'default' => 'Paypal',
+        'not null' => FALSE,
+      ),
+      'paypal_email' => array(
+        'description' => 'Buyer paypal email address.',
+        'type' => 'varchar',
+        'length' => 100,
+        'not null' => TRUE,
+      ),
+      // Shipping methods
+      'shipping_method' => array(
+        'description' => 'Shipping method type.',
+        'type' => 'varchar',
+        'length' => 25,
+        'not null' => FALSE,
+      ),
+      'shipping_domestic' => array(
+        'description' => 'Domestic shipping.',
+        'type' => 'blob',
+        'size' => 'normal',
+        'not null' => FALSE,
+      ),
+      'shipping_international' => array(
+        'description' => 'International shipping.',
+        'type' => 'blob',
+        'size' => 'normal',
+        'not null' => FALSE,
+      ),
+      // Handling time
+      'handling_time' => array(
+        'description' => 'Handling time of shipping.',
+        'type' => 'int',
+        'size' => 'medium',
+        'default' => 0,
+        'not null' => TRUE,
+      ),
+      // eBay site
+      'ebay_site' => array(
+        'description' => 'Where product will be published.',
+        'type' => 'int',
+        'length' => 11,
+        'default' => 0,
+        'not null' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'name' => array(array('name', 25)),
+      'listing_type' => array(array('listing_type', 25)),
+      'payment_type' => array(array('payment_type', 25)),
+      'paypal_email' => array(array('paypal_email', 50)),
+      'shipping_method' => array(array('shipping_method', 25)),
+      'handling_time' => array('handling_time'),
+      'ebay_site' => array('ebay_site'),
+      'status' => array('status'),
+      'created' => array('created'),
+      'updated' => array('updated'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function ebay_listing_install(){
+    // Create tables used for this module
+    drupal_install_schema('ebay_listing');
+    
+    // Notify user about new table has been created
+    drupal_set_message(t('New table \'ebay_listing\' has been created in your Drupal database!'));
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function ebay_listing_uninstall(){
+    // Uninstall database tables
+    drupal_uninstall_schema('ebay_listing');
+
+    // Notify user about new table has been created
+    drupal_set_message(t('Table \'ebay_listing\' has been removed from your Drupal database!'));
+}
+
+/**
+* Implemenation of hook_update_N
+*/
+//function ebay_listing_update_6004(&$sandbox) {
+//  $ret = array();
+  //db_drop_field($ret, 'ebay_listing', 'ebay_site');
+  //db_add_field($ret, 'ebay_listing', 'themeid', array('type' => 'int', 'length' => 11, 'default' => 0, 'not null' => TRUE));
+  
+//  return $ret;
+//}

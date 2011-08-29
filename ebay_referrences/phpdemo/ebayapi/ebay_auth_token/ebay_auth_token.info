@@ -1,0 +1,8 @@
+; $Id: ebay_auth_token.info, v 1.0 2010/11/02 tuan Exp $
+name = eBay User auth-token
+description = Provide Drupal user to generate user auth token from their eBay account.
+package = "eBay lister"
+project = "ebay_auth_token"
+dependencies[] = ebayapi
+core = "6.x"
+version = "6.x-1.0"

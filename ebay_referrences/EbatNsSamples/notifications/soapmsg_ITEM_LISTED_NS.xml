@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <soapenv:Header>
+  <ebl:RequesterCredentials soapenv:mustUnderstand="0" xmlns:ns="urn:ebay:apis:eBLBaseComponents" xmlns:ebl="urn:ebay:apis:eBLBaseComponents">
+   <ebl:NotificationSignature xmlns:ebl="urn:ebay:apis:eBLBaseComponents">75s1IqK0pDcGysyc/X6K6g==</ebl:NotificationSignature>
+  </ebl:RequesterCredentials>
+ </soapenv:Header>
+ <soapenv:Body>
+  <GetItemResponse xmlns="urn:ebay:apis:eBLBaseComponents">
+   <Timestamp>2005-07-06T12:14:24.516Z</Timestamp>
+   <Ack>Success</Ack>
+   <CorrelationID>745130</CorrelationID>
+   <Version>415</Version>
+   <Build>e415_core_Bundled_1483422_R1</Build>
+   <NotificationEventName>ItemListed</NotificationEventName>
+   <RecipientUserID>its-seller-001</RecipientUserID>
+   <Item>
+    <AutoPay>false</AutoPay>
+    <BuyerProtection>ItemIneligible</BuyerProtection>
+    <BuyItNowPrice currencyID="EUR">0.0</BuyItNowPrice>
+    <Country>DE</Country>
+    <CrossPromotion>
+     <ItemID>4503256609</ItemID>
+     <PrimaryScheme>CategoryProximity</PrimaryScheme>
+     <PromotionMethod>CrossSell</PromotionMethod>
+     <SellerID>its-seller-001</SellerID>
+     <ShippingDiscount>false</ShippingDiscount>
+     <SellerKey>0</SellerKey>
+     <PromotedItem>
+      <ItemID>4503256794</ItemID>
+      <position>1</position>
+      <PromotionPrice currencyID="EUR">1.1</PromotionPrice>
+      <PromotionPriceType>AuctionPrice</PromotionPriceType>
+      <SelectionType>Automatic</SelectionType>
+      <Title>testauktion</Title>
+      <ListingType>Chinese</ListingType>
+     </PromotedItem>
+     <PromotedItem>
+      <ItemID>4503254650</ItemID>
+      <position>2</position>
+      <PromotionPrice currencyID="EUR">1.0</PromotionPrice>
+      <PromotionPriceType>AuctionPrice</PromotionPriceType>
+      <SelectionType>Automatic</SelectionType>
+      <Title>gzugugvg</Title>
+      <ListingType>Chinese</ListingType>
+     </PromotedItem>
+    </CrossPromotion>
+    <Currency>EUR</Currency>
+    <Escrow>None</Escrow>
+    <GiftIcon>0</GiftIcon>
+    <HitCounter>NoHitCounter</HitCounter>
+    <ItemID>4503256609</ItemID>
+    <ListingDetails>
+     <Adult>false</Adult>
+     <BindingAuction>false</BindingAuction>
+     <CheckoutEnabled>true</CheckoutEnabled>
+     <ConvertedBuyItNowPrice currencyID="USD">0.0</ConvertedBuyItNowPrice>
+     <ConvertedStartPrice currencyID="USD">1.2098</ConvertedStartPrice>
+     <ConvertedReservePrice currencyID="USD">1209.8</ConvertedReservePrice>
+     <HasReservePrice>true</HasReservePrice>
+     <StartTime>2005-07-06T10:44:08.000Z</StartTime>
+     <EndTime>2005-07-06T10:49:07.000Z</EndTime>
+     <ViewItemURL>http://cgi.sandbox.ebay.com/ws/eBayISAPI.dll?ViewItem&amp;item=4503256609&amp;category=15316</ViewItemURL>
+     <HasUnansweredQuestions>false</HasUnansweredQuestions>
+     <HasPublicMessages>false</HasPublicMessages>
+    </ListingDetails>
+    <ListingDuration>Days_10</ListingDuration>
+    <ListingType>Chinese</ListingType>
+    <Location>Berlin</Location>
+    <PaymentMethods>CashOnPickup</PaymentMethods>
+    <PaymentMethods>PaymentSeeDescription</PaymentMethods>
+    <PrimaryCategory>
+     <CategoryID>15316</CategoryID>
+     <CategoryName>Auto &amp; Motorrad:Automobile:BMW:3er-Serie</CategoryName>
+    </PrimaryCategory>
+    <PrivateListing>false</PrivateListing>
+    <ProximitySearchDetails>
+     <IncludeInProximitySearch>false</IncludeInProximitySearch>
+     <PostalCode></PostalCode>
+    </ProximitySearchDetails>
+    <Quantity>1</Quantity>
+    <ReservePrice currencyID="EUR">1000.0</ReservePrice>
+    <ReviseStatus>
+     <ItemRevised>false</ItemRevised>
+    </ReviseStatus>
+    <Seller>
+     <AboutMePage>false</AboutMePage>
+     <Email>its-seller-001@intradesys.com</Email>
+     <FeedbackScore>0</FeedbackScore>
+     <FeedbackPrivate>false</FeedbackPrivate>
+     <FeedbackRatingStar>None</FeedbackRatingStar>
+     <IDVerified>false</IDVerified>
+     <eBayGoodStanding>true</eBayGoodStanding>
+     <NewUser>false</NewUser>
+     <RegistrationDate>2000-01-01T11:59:59.000Z</RegistrationDate>
+     <Site>Germany</Site>
+     <Status>Confirmed</Status>
+     <UserID>its-seller-001</UserID>
+     <UserIDChanged>false</UserIDChanged>
+     <UserIDLastChanged>2005-05-03T14:36:46.000Z</UserIDLastChanged>
+     <VATStatus>NoVATTax</VATStatus>
+     <SellerInfo>
+      <AllowPaymentEdit>true</AllowPaymentEdit>
+      <CheckoutEnabled>true</CheckoutEnabled>
+      <CIPBankAccountStored>false</CIPBankAccountStored>
+      <GoodStanding>false</GoodStanding>
+      <LiveAuctionAuthorized>false</LiveAuctionAuthorized>
+      <MerchandizingPref>OptIn</MerchandizingPref>
+      <QualifiesForB2BVAT>false</QualifiesForB2BVAT>
+      <SellerLevel>None</SellerLevel>
+      <StoreOwner>false</StoreOwner>
+     </SellerInfo>
+    </Seller>
+    <SellingStatus>
+     <BidCount>1</BidCount>
+     <BidIncrement currencyID="EUR">10.0</BidIncrement>
+     <ConvertedCurrentPrice currencyID="USD">1209.8</ConvertedCurrentPrice>
+     <CurrentPrice currencyID="EUR">1000.0</CurrentPrice>
+     <HighBidder>
+      <AboutMePage>false</AboutMePage>
+      <EIASToken>nY+sHZ2PrBmdj6wVnY+sEZ2PrA2dj6wJnY+lCpOKoQ6dj6x9nY+seQ==</EIASToken>
+      <Email>its-buyer-001@intradesys.com</Email>
+      <FeedbackScore>0</FeedbackScore>
+      <FeedbackPrivate>false</FeedbackPrivate>
+      <FeedbackRatingStar>None</FeedbackRatingStar>
+      <IDVerified>false</IDVerified>
+      <eBayGoodStanding>true</eBayGoodStanding>
+      <NewUser>false</NewUser>
+      <RegistrationAddress>
+       <Name>Herbert Varli</Name>
+       <Street>Am Testwall 31</Street>
+       <Street1>Am Testwall 31</Street1>
+       <CityName>KÃ¶ln</CityName>
+       <CountryName>None</CountryName>
+       <Phone>Invalid Request</Phone>
+       <PostalCode>50999</PostalCode>
+      </RegistrationAddress>
+      <RegistrationDate>2005-05-03T14:44:58.000Z</RegistrationDate>
+      <Site>Germany</Site>
+      <Status>Confirmed</Status>
+      <UserID>its-buyer-001</UserID>
+      <UserIDChanged>false</UserIDChanged>
+      <UserIDLastChanged>2005-05-03T14:44:58.000Z</UserIDLastChanged>
+      <VATStatus>NoVATTax</VATStatus>
+      <SellerInfo>
+       <AllowPaymentEdit>false</AllowPaymentEdit>
+       <CheckoutEnabled>true</CheckoutEnabled>
+       <CIPBankAccountStored>false</CIPBankAccountStored>
+       <GoodStanding>false</GoodStanding>
+       <LiveAuctionAuthorized>false</LiveAuctionAuthorized>
+       <MerchandizingPref>OptIn</MerchandizingPref>
+       <QualifiesForB2BVAT>false</QualifiesForB2BVAT>
+       <SellerLevel>None</SellerLevel>
+       <StoreOwner>false</StoreOwner>
+      </SellerInfo>
+     </HighBidder>
+     <LeadCount>0</LeadCount>
+     <MinimumToBid currencyID="EUR">1010.0</MinimumToBid>
+     <QuantitySold>1</QuantitySold>
+     <ReserveMet>true</ReserveMet>
+     <SecondChanceEligible>true</SecondChanceEligible>
+    </SellingStatus>
+    <ShippingDetails>
+     <AllowPaymentEdit>true</AllowPaymentEdit>
+     <ApplyShippingDiscount>false</ApplyShippingDiscount>
+     <InsuranceOption>NotOffered</InsuranceOption>
+     <PaymentInstructions>Zahlungshinweise</PaymentInstructions>
+     <SalesTax>
+      <SalesTaxPercent>0.0</SalesTaxPercent>
+      <ShippingIncludedInTax>false</ShippingIncludedInTax>
+     </SalesTax>
+     <ShippingServiceOptions/>
+     <ThirdPartyCheckout>false</ThirdPartyCheckout>
+     <TaxTable/>
+    </ShippingDetails>
+    <Site>Germany</Site>
+    <StartPrice currencyID="EUR">1.0</StartPrice>
+    <SubTitle>untertitel</SubTitle>
+    <TimeLeft>PT0S</TimeLeft>
+    <Title>testauktion</Title>
+    <UUID>581EAE5AE08AA0FD5EF6DEF3637B3DB0</UUID>
+    <VendorHostedPicture>
+     <PhotoDisplay>None</PhotoDisplay>
+    </VendorHostedPicture>
+    <AnythingPoints>false</AnythingPoints>
+   </Item>
+  </GetItemResponse>
+ </soapenv:Body>
+</soapenv:Envelope>

@@ -1,0 +1,232 @@
+/* CSS for ebay_category_mapping module */
+
+
+
+div#category_tree_ebay_holder {
+
+    background-color: #e6e6e6;
+
+    width:49%;
+
+    display:block;
+
+    float:left;
+
+}
+
+
+
+div#category_tree_drupal_holder {
+
+    background-color: #e6e6e6;
+
+    width:49%;
+
+    display:block;
+
+    float:right;
+
+}
+
+
+
+.is_opened, li .is_closed {
+
+    cursor:pointer;
+
+    font-weight:bold;
+
+}
+
+
+
+.li_row_label {
+
+    margin:0;
+
+    padding:0;
+
+}
+
+
+
+.li_row_label:hover {
+
+    background-color:#fff;
+    color:#C40400;
+
+}
+
+
+
+.li_row_label.has_children {
+
+    font-weight:bold;
+
+}
+
+
+
+.li_row_label.is_opened.no_children, .li_row_label.is_closed.no_children {
+
+    font-weight:normal;
+
+    cursor:default;
+
+}
+
+
+
+.li_row_label.not_built {
+
+    font-style:normal;
+
+}
+
+#category_tree_holder .label {
+
+    font-size:14px;
+
+    font-weight:bold;
+
+    display:block;
+
+    clear:both;
+
+    padding:5px;
+
+    padding-left:10px;
+
+    background-color:gray;
+
+    color:#fff;
+
+}
+
+
+
+#ebay_category_holder {
+
+    background-color:#e6e6e6;
+
+    width:auto;
+
+    height:260px;
+
+    padding:10px;
+
+    border:1px solid gray;
+
+    overflow-x:auto;
+
+    overflow-y:hidden;
+
+}
+
+
+
+#ebay_category_holder_label {
+
+    display:block;
+
+    clear:both;
+
+    height:20px;
+
+}
+
+
+
+#ebay_category_select_holder {
+
+    width:0;
+
+    vertical-align:top;
+
+    display:block;
+
+    height:230px;
+
+}
+
+
+
+#ebay_category_select_holder select {
+
+    margin-right:10px;
+
+    height:230px;
+
+    width:200px;
+
+    display:block;
+
+    float:left;
+
+}
+
+
+
+#ebay_category_select_holder div.category_success {
+
+    display:block;
+
+    float:right;
+
+    width:180px;
+
+    margin-right:10px;
+
+    padding:10px;
+
+    padding-right:0;
+
+    text-align:left;
+
+    background-color:#fff;
+
+    clear:right;
+
+    border:1px gray dotted;
+
+}
+
+
+
+div.category_success span {
+
+    text-align:left;
+
+}
+
+
+
+div.category_success img {
+
+    padding-right:5px;
+
+}
+
+
+
+div#ebay_category_button_holder {
+
+    margin-top:10px;
+
+}
+
+div#ebay_local_categories_holder ul {
+    margin:0;
+    padding:0;
+}
+
+div#ebay_local_categories_holder ul li {
+    list-style: none;
+    padding-left:10px;
+}
+
+div#ebay_local_categories_holder .li_row_label {
+    margin:0;
+    padding:0;
+    padding-left:5px;
+}

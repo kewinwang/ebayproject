@@ -1,0 +1,266 @@
+<?php
+
+// $Id: ebayfield.module,v 1.0 2010/12/02 11:25:27 tuan Exp $
+
+/**
+ * @file
+ * Defines a widget type for ebayfield
+ **/
+
+/**
+ * Implementation of hook_field_info().
+ */
+function ebayfield_field_info() {
+  return array(
+    'ebayfield' => array(
+      'label' => t('eBayField'),
+      'description' => t('Provide a liked eBay field.'),
+      //'content_icon' => 'icon_content_text.png',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_settings().
+ */
+function ebayfield_field_settings($op, $field) {
+  switch ($op) {
+    case 'form':
+        // Get a list of existing vocabularies and put into a select list for user to choose
+        $options_voc = array();
+        foreach (taxonomy_get_vocabularies() as $voc) {
+            _content_taxonomy_localize_vocabulary($voc);
+            $options_voc[$voc->vid] = $voc->name;
+        }
+      
+        $form = array();
+        $form['vid'] = array(
+            '#title' => t('Vocabulary'),
+            '#type' => 'select',
+            '#default_value' => is_numeric($field['vid']) ? $field['vid'] : 0,
+            '#options' => $options_voc,
+            '#description' => t('Terms of the selected vocabulary get exposed to the field'),
+        );
+
+        return $form;
+
+    case 'validate':
+        // A vocabulary must be selected during this process
+        if (!$field['vid']) {
+            form_set_error('vid', t('Please select a vocabulary in order for this field to point to.'));
+        }
+
+        break;
+
+    case 'save':
+        return array('vid');
+
+    case 'database columns':
+        return array(
+            'value' => array('type' => 'varchar', 'length' => 225, 'not null' => FALSE, 'sortable' => TRUE),
+        );
+  }
+}
+
+/**
+ * Implementation of hook_field().
+ */
+function ebayfield_field($op, &$node, $field, &$items, $teaser, $page) {  
+  switch ($op) {
+    case 'presave':
+       // Add new item name into vocabulary if any
+       foreach ($items as $delta => $item) {
+           if (trim($item['value'])) {
+               _ebayfield_add_new_term($field['vid'], $item['value']);
+           }
+       }
+    
+       break;
+    
+    case 'load':       
+       break;
+
+    case 'view':
+       break;
+
+    case 'validate':
+       break;
+
+    case 'submit':
+       break;
+   
+    case 'insert':
+       break;
+
+    case 'update':
+       break;
+
+   case 'delete':
+       break;
+
+   case 'sanitize':
+       foreach ($items as $delta => $item) {
+          $items[$delta]['safe'] = check_plain($item['value']);
+       }
+  }
+}
+
+/**
+ * Implementation of hook_content_is_empty().
+ */
+function ebayfield_content_is_empty($item, $field) {
+  if (empty($item['value']) && (string)$item['value'] !== '0') {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_widget_info().
+ */
+function ebayfield_widget_info() {
+  return array(
+    'ebayfield_widget' => array(
+        'label' => t('eBayField'),
+        'field types' => array('ebayfield'),
+        'multiple values' => CONTENT_HANDLE_CORE,
+        'callbacks' => array(
+            'default value' => CONTENT_CALLBACK_DEFAULT,
+        ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_widget_settings().
+ */
+function ebayfield_widget_settings($op, $widget) {
+  switch ($op) {
+    // settings form to be displayed during field creation.
+    case 'form':
+      break;
+   
+    // settings form validation.
+    case 'validate':
+      break;
+
+    // form keys to save for settings form.
+    case 'save':
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_widget().
+ */
+function ebayfield_widget(&$form, &$form_state, $field, $items, $delta = 0) {    
+    // Add required js into the form
+    drupal_add_js(drupal_get_path('module', 'ebayfield') .'/ebayfield.js');
+
+    // Add required CSS
+    drupal_add_css(drupal_get_path('module', 'ebayfield') .'/ebayfield.css');
+
+    // We need all terms from this vid
+    $terms = taxonomy_get_tree($field['vid']);
+    $term_options = array();
+    $term_options[""] = t('- Please select');
+    
+    if ($terms) {
+        foreach ($terms as $index => $term) {
+            $term_options[$term->name] = $term->name;
+        }
+    }
+    
+    // Add a "Add new item" into the list
+    $term_options['0'] = t('Add new item');
+
+    // Build the field for displaying in the input form
+    $elements = array();
+        
+    // Select field
+    $elements['list'] = array(
+        '#title' => check_plain($field['widget']['label']),
+        '#type' => 'select',
+        '#default_value' => $items[$delta]['value'],
+        '#options' => $term_options,
+        '#required' => $field['required'],
+        '#description' => t('Select or input a new item from the list.'),
+        '#attributes' => array('class' => 'ebayfield_widget_list', 'rel' => $field['vid']),
+    );
+        
+    // Value field (to be stored)
+    $elements['value'] = array(
+        '#type' => 'hidden',
+        '#default_value' => $items[$delta]['value'],
+        '#attributes' => array('class' => 'ebayfield_widget_value'),
+    );
+    
+    // Used so that hook_field('validate') knows where to
+    // flag an error in deeply nested forms.
+    if (empty($form['#parents'])) {
+        $form['#parents'] = array();
+    }
+    
+    return $elements;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function ebayfield_theme() {
+  return array(
+    'ebayfield_formatter_default' => array(
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function ebayfield_field_formatter_info() {
+  $formatters = array(
+    'default' => array(
+      'label' => 'Default',
+      'field types' => array('ebayfield'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+  );
+  return $formatters;
+}
+
+/**
+* Theme function for 'default' example field formatter.
+*/
+function theme_ebayfield_formatter_default($element) {
+  return $element['#item']['safe'];
+}
+
+/**
+* Helper function to add new term for the field
+*/
+function _ebayfield_add_new_term($vid, $name) {
+    // We will get a list of existing terms for checking, if the value is new, add it into the list (vocabulary)
+    $term_names_list = _ebayfield_to_names_list(taxonomy_get_tree($vid));
+
+    // Process the item to add new item into vocabulary if any
+    if (!in_array(strtolower($name), $term_names_list)) {
+        // Create a new term for the current vocabulary
+        $new_term = array('vid' => $vid, 'name' => $name);        
+        @taxonomy_save_term($new_term);
+    }
+}
+
+/**
+* Helper function to convert term objects list into names array
+*/
+function _ebayfield_to_names_list($terms) {
+    $names_list = array();
+    if ($terms) {
+        foreach ($terms as $index => $term) {
+            $names_list[] = strtolower($term->name);
+        }
+    }
+    
+    return $names_list;
+}

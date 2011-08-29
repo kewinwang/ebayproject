@@ -1,0 +1,8 @@
+; $Id: ebay_listing.info, v 1.0 2010/12/10 tuan Exp $
+name = eBay Listing
+description = Provide a link to node view and process to list the node onto eBay.
+package = "eBay lister"
+project = "ebay_listing"
+dependencies[] = ebayapi
+core = "6.x"
+version = "6.x-1.0"

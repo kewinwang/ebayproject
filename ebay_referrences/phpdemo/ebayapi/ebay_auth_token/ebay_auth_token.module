@@ -1,0 +1,215 @@
+<?php
+// $Id: ebay_auth_token.mobule ,v 1.0 2010/11/02 - tuan Exp $
+// To handle ebay user auth token generation
+
+/**
+* Implement hook_menu
+*/
+function ebay_auth_token_menu() {
+   $items = array();
+    
+   // Add a link to user tab for auth token generation
+   $items['user/%user/ebay_auth_token'] = array(
+     'title' => t('eBay user token'),
+     'page callback' => 'ebay_auth_token_page',
+     'access arguments' => array('access content'),
+     'weight' => 1,
+     'type' => MENU_LOCAL_TASK,
+   );
+   
+   $items['ebay_auth_token/get_sessionid'] = array(
+     'title' => t('Negotiate a new session id from eBay site.'),
+     'page callback' => 'ebay_auth_token_get_new_sessionid',
+     'access arguments' => array('access content'),
+     'type' => MENU_CALLBACK,
+   );
+
+   $items['ebay_auth_token/get_fetchtoken/%'] = array(
+     'title' => t('Get result from fetchtoken call.'),
+     'page callback' => 'ebay_auth_token_get_fetchtoken',
+     'access arguments' => array('access content'),
+     'type' => MENU_CALLBACK,
+   );
+
+   $items['ebay_auth_token/remove_ebay_uid/%'] = array( // eBay uid
+     'title' => t('Remove a eBay uid from the Drupal account.'),
+     'page callback' => 'ebay_auth_token_remove_ebayuid',
+     'access arguments' => array('access content'),
+     'type' => MENU_CALLBACK,
+   );
+   
+   return $items;
+}
+
+/**
+* Remove a eBay uid / auth token by the ebay uid
+*/
+function ebay_auth_token_remove_ebayuid() {
+    $ebay_uid = arg(2);
+    if (!$ebay_uid) return;
+    
+    global $user;
+    _ebay_auth_token_delete($user->uid, $ebay_uid);
+    
+    // Set message and return
+    drupal_set_message(t('The eBay uid \''. $ebay_uid .'\' has been removed from your Drupal account successfully.'));
+    drupal_goto('user/'. $user->uid .'/ebay_auth_token');
+    die("");
+}
+
+/**
+* Negotiate a new session id from eBay site
+*/
+function ebay_auth_token_get_new_sessionid() {
+    // Returned result    
+    $result = array();
+    
+    // Get session id
+    $session_id = ebayapi_getsessionid();
+    if ($session_id) {
+        $result['status'] = 'success';
+        $result['sessionid'] = (string)$session_id;
+    }
+    
+    echo drupal_to_js($result);
+    exit;
+}
+
+/**
+* Request and return auth token from eBay
+*/
+function ebay_auth_token_get_fetchtoken() {
+    global $user;
+    
+    // Fetchtoken if there is session id
+    if (arg(2)) {
+        $auth_token = ebayapi_fetchtoken(arg(2));
+    }
+    else{
+        $auth_token = '';
+    }
+    
+    // Store the token if successful
+    if ($auth_token) {
+        // Get the ebay uid for this auth token
+        $ebay_user_account = ebayapi_getuser($auth_token);
+        $ebay_uid = '';
+        
+        if ($ebay_user_account->Ack == 'Success') {
+            $ebay_uid = (string)$ebay_user_account->User->UserID;
+        }
+        
+        if ($ebay_uid) {
+            _ebay_auth_token_save($user->uid, $ebay_uid, $auth_token);
+            drupal_set_message(t('Your eBay user auth token has been successfully generated and stored! Your token is: '. $auth_token));
+        }else{
+            drupal_set_message(t('Username is not found in the eBay system.'), 'error');
+        }
+    }
+    else{
+        drupal_set_message(t('We could not generate your eBay user auth token. Please refresh your browser and try again.'), 'error');
+    }
+    
+    // Go back user page
+    drupal_goto('user/'. $user->uid .'/ebay_auth_token');
+    die("");
+}
+
+/**
+* Page that shows current user ebay token and a link for create / update
+*/
+function ebay_auth_token_page() {
+    global $user;
+    
+    // Add our needed js
+    drupal_add_js(drupal_get_path('module', 'ebay_auth_token') .'/ebay_auth_token.js');
+    drupal_add_css(drupal_get_path('module', 'ebay_auth_token') .'/ebay_auth_token.css');
+    
+    // Create eBay sign-url
+    $ebay_url = EBAY_SIGNIN_URL .'&runame='. RUNAME .'&SessID=';
+    
+    // URL to remove a user auth token from Drupal account
+    $remove_url = 'ebay_auth_token/remove_ebay_uid';
+    
+    // Display a link here for user to either create a new one or update
+    $ebay_accounts = _ebay_auth_token_get_token($user->uid);
+    
+    // Build a table to list all existing accounts
+    // Table header
+    $header = array(
+        array('data' => t('eBay uid')),
+        array('data' => t('Last updated')),
+        array('data' => t('Actions')),
+      );
+    
+    // Table body
+    $rows = array();
+    foreach ($ebay_accounts as $ebay_uid => $ebay_details) {
+        $column = array();
+        $column[] = array('data' => $ebay_uid);
+        $column[] = array('data' => $ebay_details['updated']);
+        $column[] = array('data' => l(t('Update token'), $ebay_url, array('attributes' => array('class' => 'auth_token_new_window'))) .' | '. l(t('Remove'), $remove_url .'/'. $ebay_uid, array('attributes' => array('class' => 'auth_token_remove'))));
+        
+        $rows[] = $column;
+    }
+
+    if (empty($rows)) {
+        $rows[] = array(array('data' => 'There are no eBay uids have been added yet.', 'colspan' => 3));
+    }
+
+    // Add new ebay uid link
+    $output .= '<p>'. l(t('Add new eBay uid?'), $ebay_url, array('attributes' => array('class' => 'auth_token_new_window'))) .'</p>';
+    // Fetchtoken link
+    $output .= '<p class="p_auth_token_fetch">'. l(t('Click here when you finish your eBay sign-in and close the popup window.'), 'ebay_auth_token/get_fetchtoken/') .'</p>';
+    
+    // Theme and return all built elements
+    $output .= theme('table', $header, $rows);
+    
+    return $output;
+}
+
+/**
+* Get current token string if any by user uid
+*/
+function _ebay_auth_token_get_token($uid) {
+    // Get token by user id and return
+    $results = db_query("SELECT ebay_uid, auth_token, updated FROM {ebay_auth_token} WHERE uid=%d", $uid);
+
+    $ebay_results = array();    
+    while ($result = db_fetch_object($results)) {
+        $ebay_results[''. $result->ebay_uid]['token'] = $result->auth_token;
+        $ebay_results[''. $result->ebay_uid]['updated'] = $result->updated;
+    }
+    
+    return $ebay_results;
+}
+
+/**
+* Get token string by token id
+*/
+function _ebay_auth_token_get_token_by_token_id($token_id) {
+    return db_result(db_query("SELECT auth_token FROM {ebay_auth_token} WHERE ebay_uid=%d", $token_id));
+}
+
+/**
+* Insert / update token
+*/
+function _ebay_auth_token_save($uid, $ebay_uid, $auth_token) {
+    // Get existing auth token if any
+    $auth_token_exists = _ebay_auth_token_get_token($uid);
+    if (isset($auth_token_exists[$ebay_uid])) {
+        // Update
+        @db_query("UPDATE {ebay_auth_token} SET auth_token='%s', updated='%s' WHERE uid=%d", $auth_token, date('Y-m-d H:i:s', time()), $uid);
+    }
+    else{
+        // Insert new
+        @db_query("INSERT INTO {ebay_auth_token} (uid, ebay_uid, auth_token, updated) VALUES (%d, '%s', '%s', '%s')", $uid, $ebay_uid, $auth_token, date('Y-m-d H:i:s', time()));
+    }
+}
+
+/**
+* Remove a token from table
+*/
+function _ebay_auth_token_delete($uid, $ebay_uid) {
+    @db_query("DELETE FROM {ebay_auth_token} WHERE uid=%d AND ebay_uid='%s'", $uid, $ebay_uid);
+}

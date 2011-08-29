@@ -1,0 +1,30 @@
+<?php
+// $Id: ebay_listing.mobule ,v 1.0 2010/12/10 - tuan Exp $
+
+/**
+*@file jj.module
+*
+*Display something!
+*/
+
+/**
+* Implement hook_menu
+*/
+function jj_menu() {
+   $items = array();
+
+   // Check ebay category specifics
+   $items['jj/displaySomething_page'] = array(
+      'page callback' => 'displaySomething_page',
+      'access arguments' => array('access content')
+   );
+   
+   return $items;
+}
+
+/**
+* Display something
+*/
+function displaySomething_page() {
+    drupal_set_message(t('It worked!!'), 'error');
+}

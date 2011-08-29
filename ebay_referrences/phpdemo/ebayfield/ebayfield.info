@@ -1,0 +1,11 @@
+; $Id: ebayfield.info,v 1.0 2010/12/02 08:05:19 tuan Exp $
+name = eBayField
+description = Defines a like eBay field (a textfield but becomes dropdown when clicking and allows to add user own value)
+dependencies[] = content 
+dependencies[] = taxonomy
+package = CCK
+core = 6.x
+
+version = "6.x-1.0"
+core = "6.x"
+project = "ebayfield"

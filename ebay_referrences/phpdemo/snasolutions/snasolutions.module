@@ -1,0 +1,194 @@
+<?php
+// $Id: snasolutions.module,v 1.0 2010/09/13 - tuan Exp $
+
+/**
+* Implement hook_perm
+*/
+function snasolutions_perm() {
+    return array('access ebaylister pages');
+}
+
+/**
+* Implement hook_menu
+*/
+function snasolutions_menu() {
+    $item = array();
+    
+    // Post a request to eBay for validation of user id and auth token id
+    $items['import/products'] = array(
+        'page callback' => 'snasolutions_import_products',
+        'access arguments' => array('access administration pages'),
+        'type' => MENU_CALLBACK,
+    );
+
+    $items['publish/products/%'] = array(
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('snasolutions_publish_product_popup_steps_form'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_CALLBACK,
+    );
+    
+    // Local menus (Tabs system)
+    $items['dashboard'] = array(
+        //'title' => t('Dashboard'),
+        'description' => t('User dashboard page.'),
+        'page callback' => 'snasolutions_page_dashboard',
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_CALLBACK,
+    );
+
+    $items['dashboard/default'] = array(
+        'title' => t('Dashboard'),
+        'description' => t('User dashboard page.'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => -10,
+    );
+
+    $items['dashboard/view_products'] = array(
+        'title' => t('View products'),
+        'description' => t('View products page.'),
+        'page callback' => 'snasolutions_page_view_products',
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -9,
+    );
+
+    $items['dashboard/listing_settings'] = array(
+        'title' => t('Listing settings'),
+        'description' => t('Listing settings page.'),
+        'page callback' => 'snasolutions_page_listing_settings',
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -8,
+    );
+
+    $items['dashboard/listing_status'] = array(
+        'title' => t('Listing status'),
+        'description' => t('Listing status page.'),
+        'page callback' => 'snasolutions_page_listing_status',
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -7,
+    );
+
+    $items['dashboard/ebay_tokens'] = array(
+        'title' => t('eBay tokens'),
+        'page callback' => 'snasolutions_page_ebay_tokens',
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -6,
+    );
+
+    $items['dashboard/listing_settings/default'] = array(
+        'title' => t('Current templates'),
+        'description' => t('eBay listing settings.'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => -10,
+    );
+
+    $items['dashboard/listing_settings/create_template'] = array(
+        'title' => t('Create eBay template'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('snasolutions_ebay_template_form'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -9,
+    );
+
+    $items['dashboard/listing_settings/%/edit'] = array(
+        'title' => t('Edit eBay template'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('snasolutions_ebay_template_form'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+    );
+
+    $items['dashboard/listing_settings/%/delete'] = array(
+        'title' => t('Delete eBay template'),
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('snasolutions_ebay_template_delete_form'),
+        'access arguments' => array('access ebaylister pages'),
+        'type' => MENU_LOCAL_TASK,
+    );
+
+    return $items;
+}
+
+/**
+* Put this javascript file to everywhere. Why? because it is used on all the pages
+*/
+function snasolutions_init() {
+    // Define some global variables
+    define(CATEGORY_VID, 28);
+    
+    // Add some require js/css files
+    drupal_add_js(drupal_get_path('module', 'snasolutions') . '/snasolutions.js');
+    drupal_add_css(drupal_get_path('module', 'snasolutions') . '/snasolutions.css');
+    
+    module_load_include('inc', 'snasolutions', 'snasolutions.func');
+    module_load_include('inc', 'snasolutions', 'snasolutions.page');
+}
+
+/**
+* Implementation of hook_user
+*/
+function snasolutions_user($op, &$edit, &$account, $category = NULL) {
+    switch ($op) {
+        case 'view':
+            drupal_goto('dashboard');
+            break;
+    }
+}
+
+/**
+* Implement hook_nodeapi
+*/
+function snasolutions_nodeapi(&$node, $op) {
+    // Process of couple of cases here
+    switch ($op) {
+        case 'view':
+            //dsm($node);
+            break;
+        
+        case 'delete':
+            _ebay_listing_remove($node->nid);
+            break;
+    }
+}
+
+/**
+* Implement hook_form_alter
+*/
+function snasolutions_form_alter(&$form, &$form_state, $form_id) {
+    //echo $form_id .'<br>';
+    
+    switch ($form_id) {
+        case 'ebaylister_node_form':
+            // Build eBay category
+            $form['ebay_category']['#value'] = snasolutions_ebay_categories($form['field_ebay_categories']);
+            
+            // Add our submit process function
+            $form['#validate'][] = 'snasolutions_validate_ebaylister_form';
+            $form['#submit'][] = 'snasolutions_set_category';
+            
+            break;
+    }
+}
+
+/**
+* Implement hook_theme
+*/
+function snasolutions_theme($existing, $type, $theme, $path) {
+    return array(
+        'ebaylister_node_form' => array(
+            'arguments' => array('form' => NULL),
+            'template' => 'themes/ebaylister-node-form', 
+        ),
+        'snasolutions_publish_product_popup_steps_form' => array(
+            'arguments' => array('form' => NULL),
+            'template' => 'themes/publish-product-popup-steps-form', 
+        ),
+    );
+}

@@ -1,0 +1,7 @@
+; $Id: snasolutions.info, v 1.0 2010/09/13 tuan Exp $
+name = SNA Solutions Helper
+description = Provide a set of custom functions used for the site.
+package = "eBay lister"
+project = "snasolutions"
+core = "6.x"
+version = "6.x-1.0"

@@ -1,0 +1,86 @@
+<?php
+// $Id$ ebay_category_mapping.install
+
+/**
+ * Implementation of hook_schema().
+ */
+function ebay_category_mapping_schema() {
+  $schema['ebay_category_mapping'] = array(
+    'description' => t('The table that contains all eBay categories details'),
+    'fields' => array(
+      'CategoryID' => array(
+        'description' => 'eBay category unique id',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => TRUE,
+      ),
+      'CategoryLevel' => array(
+        'description' => 'Category level',
+        'type' => 'int',
+        'length' => 1,
+        'not null' => TRUE,
+      ),
+      'CategoryName' => array(
+        'description' => 'Category name.',
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      'CategoryParentID' => array(
+        'description' => 'eBay category parent id.',
+        'type' => 'int',
+        'length' => 11,
+        'not null' => TRUE,
+      ),
+      'CategoryNamePath' => array(
+        'description' => 'Category name breadcrumb.',
+        'type' => 'varchar',
+        'length' => 150,
+        'not null' => TRUE,
+      ),
+      'CategoryIDPath' => array(
+        'description' => 'Category id breadcrumb.',
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      'LeafCategory' => array(
+        'description' => 'Leaf status of the category.',
+        'type' => 'int',
+        'length' => 1,
+        'not null' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'CategoryLevel' => array('CategoryLevel'),
+      'CategoryName' => array('CategoryName'),
+      'CategoryParentID' => array('CategoryParentID'),
+      'LeafCategory' => array('LeafCategory'),
+    ),
+    'primary key' => array('CategoryID'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function ebay_category_mapping_install(){
+    // Create tables used for this module
+    drupal_install_schema('ebay_category_mapping');
+    
+    // Notify user about new table has been created
+    drupal_set_message(t('New table \'ebay_category_mapping\' has been created in your Drupal database!'));
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function ebay_category_mapping_uninstall(){
+    // Uninstall database tables
+    drupal_uninstall_schema('ebay_category_mapping');
+
+    // Notify user about new table has been created
+    drupal_set_message(t('Table \'ebay_category_mapping\' has been removed from your Drupal database!'));
+}

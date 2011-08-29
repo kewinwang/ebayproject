@@ -1,0 +1,7 @@
+; $Id: ebayapi.info, v 1.0 2010/09/08 tuan Exp $
+name = eBay API
+description = Provide wrapper functions in order to use eBay API in our Drupal site.
+package = "eBay lister"
+project = "ebayapi"
+core = "6.x"
+version = "6.x-1.0"

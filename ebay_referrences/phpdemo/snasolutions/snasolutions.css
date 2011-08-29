@@ -1,0 +1,107 @@
+/* CSS for the module - @created 16 May 2011 by Tuan */
+
+#tabs_holder ul {
+    padding:0;
+    margin:0;
+    clear:both;
+    overflow:hidden;
+    display:block;
+    border-bottom:1px solid #e6e6e6;
+    height:24px;
+}
+
+#tabs_holder ul li {
+    padding:2px 10px;
+    margin:0 3px 0 0;
+    list-style: none outside none;
+    float:left;
+}
+
+.tab-label {
+    cursor:pointer;
+    border:1px solid #e6e6e6;
+    border-bottom:none;
+}
+
+.tab-label.active {
+    cursor:default;
+}
+
+.tab-label.active, .tab-label:hover {
+    color:navy;
+    font-weight:bold;
+    background-color: #E6E6E6;
+}
+
+.tab-content {
+    display:none;
+}
+
+.tab-content.active {
+    display:block;
+}
+
+#tabs_holder {
+    margin-top:20px;
+}
+
+#content_holder {
+    margin-top:10px;
+}
+
+#hidden_fields {
+    display:none;
+}
+
+#edit-themeid-wrapper {
+    float: left;
+    margin: 0 20px 0 0;
+    display:inline;
+}
+
+#product-preview {
+    display:inline;
+    width:120px;
+}
+
+#product-preview table {
+    border:none;
+    width:120px;
+}
+
+#product-preview table tbody {
+    border-top:none;
+    padding:0;
+}
+
+#product-preview table tr, #product-preview table td {
+    padding:0;
+}
+
+#table-wrapper {
+    margin:0;
+    padding:0;
+}
+
+#table-wrapper table, #table-wrapper table tbody, #table-wrapper table tr, #table-wrapper table td {
+    padding:0;
+    margin:0;
+    border-collapse:separate;
+}
+
+tr.row-selected, tr.row-selected.odd, tr.row-selected.even {
+    background-color: yellow;
+    border-bottom: 1px solid #FFFFFF;
+}
+
+ul.buttons, ul.buttons li {
+    margin:0;
+    padding:0;
+    list-style:none;
+    display:inline;
+}
+
+/*td.views-field-field-image-cache-fid {
+    text-align:center;
+    vertical-align: middle;
+}*/

@@ -1,0 +1,436 @@
+<?php
+// $Id: ebay_category_mapping.module,v 1.0 2010/11/09 - tuan Exp $
+
+/**
+* Implement hook Menu
+*/
+function ebay_category_mapping_menu() {
+  $items = array();
+
+   // Add link to admin building
+  $items['admin/build/ebay_category_mapping'] = array(
+    'title' => 'eBay categories mapping',
+    'description' => 'eBay categories mapping page.',
+    'page callback' => 'ebay_category_mapping_page',
+    'access arguments' => array('administer site configuration'),
+   );
+
+//  $items['ebay_category_mapping/test'] = array(
+//    'title' => 'eBay categories mapping test',
+//    'description' => 'eBay categories mapping test.',
+//    'page callback' => 'ebay_category_mapping_based_form',
+//    'access arguments' => array('access content'),
+//   );
+
+  $items['ebay_category_mapping/build_category/%'] = array(
+    'title' => 'Build new category',
+    'description' => 'Build new category by fetching it from eBay.',
+    'page callback' => 'ebay_category_mapping_build_category',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+    'weight' => 1,
+    'type' => MENU_LOCAL_TASK,
+   );
+
+  $items['ebay_category_mapping/build_taxonomy/%/%'] = array(
+    'title' => 'Build category',
+    'description' => 'Build category by fetching it from Drupal taxonomy.',
+    'page callback' => 'ebay_category_mapping_build_taxonomy',
+    'page arguments' => array(2, 3),
+    'access arguments' => array('administer site configuration'),
+    'weight' => 1,
+    'type' => MENU_LOCAL_TASK,
+   );
+   
+  return $items;
+}
+
+/**
+* Implementation of hook_block
+*/
+function ebay_category_mapping_block($op = 'list', $delta = 0, $edit = array()) { 
+    if ($op == "list") {
+        $block = array();
+        $block[0]["info"] = t('eBay Product Categories');
+        
+        return $block;
+    }
+    else if ($op == 'view') {
+        $block = array();
+        $block['subject'] = t('eBay Product Categories'); 
+        $block['content'] = ebay_category_mapping_categories();
+        
+        return $block;
+    }
+}
+
+/**
+* Build eBay categories based on local data
+*/
+function ebay_category_mapping_categories() {
+    // Import js / css
+    drupal_add_js(drupal_get_path("module", "ebay_category_mapping") .'/ebay_category_mapping.js');
+    drupal_add_css(drupal_get_path("module", "ebay_category_mapping") .'/ebay_category_mapping.css');
+
+    // Get all level 1 categories
+    $categories = _ebay_category_mapping_db_get_by_categoryparentid(-1);
+    
+    if (!$categories) {
+        $categories = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo(-1));
+        
+        // Remove the first category as it is the parent
+        unset($categories[-1]);
+    }
+    
+
+    $output = '';
+    $output .= '<div id="ebay_local_categories_holder">';
+
+    foreach ($categories as $cid => $values) {
+        $output .= '<ul><li id="folder_'. $cid .'" class="level_'. $values['CategoryLevel'] .'"><p class="is_closed not_built li_row_label" id="'. $cid .'" onclick="Drupal.ebay_category_mapping.tree_click(this);">'. $values['CategoryName'] .'</p></li></ul>';
+    }
+    
+    $output .= '</div>';
+    
+    return $output;    
+}
+
+/**
+* Output a based form for eBay categories selection
+*/
+function ebay_category_mapping_based_form() {
+    // Import js / css
+    drupal_add_js(drupal_get_path("module", "ebay_category_mapping") .'/ebay_category_mapping.js');
+    drupal_add_css(drupal_get_path("module", "ebay_category_mapping") .'/ebay_category_mapping.css');
+    drupal_add_js('var path_to_ebay_category_mapping = "/'. drupal_get_path("module", "ebay_category_mapping") .'";', 'inline');
+    
+    // Detect pre-selected category id (used for changing category id)
+    $category_id = "";
+    if (is_numeric(arg(2))) {
+        $category_id = arg(2);
+    }
+    
+    // Detect for redirecting
+    $nid = 'new';
+    if (is_numeric(arg(3))) {
+        $nid = arg(3);
+    }
+    
+    // Output the form
+    $output = '';
+    $output .= '<div id="ebay_category_holder">';
+    $output .= '<div id="ebay_category_holder_label">'. t('Categories:') .'</div>';
+    $output .= '<div id="ebay_category_select_holder"></div>';
+    $output .= '</div>';
+    
+    $output .= '<div id="ebay_category_button_holder">';
+    $output .= '<input type="hidden" name="category_level" id="category_level" value="0">'; // Default for root level
+    $output .= '<input type="hidden" name="category_id" id="category_id" value="'. $category_id .'">';
+    $output .= '<input type="hidden" name="nid" id="nid" value="'. $nid .'">';
+    $output .= '<input type="button" name="category_continue" id="category_continue" value="Continue">';
+    $output .= '</div>';
+    
+    return $output;
+}
+
+/**
+* Output the taxonomy tree
+*/
+function ebay_category_mapping_build_taxonomy_tree() {
+    $vocabularies = taxonomy_get_vocabularies();
+    
+    $output = '';
+    $output .= '<ul>';
+
+    foreach ($vocabularies as $vid => $vocabulary) {
+        $output .= '<li id="container_'. $vid .'" class="level_0"><p class="is_closed not_built li_row_label" id="vid_'. $vid .'" onclick="Drupal.ebay_category_mapping.drupal_tree_click(this, '. $vid .', 0);">'. $vocabulary->name .'</p></li>';
+    }
+    
+    $output .= '</ul>';
+    return $output;
+}
+
+/**
+* Build taxonomy tree
+*/
+function ebay_category_mapping_build_taxonomy($vid, $parent) {
+    // Retrieve categories by ids
+    $ecategories = array();
+    $categories = taxonomy_get_tree($vid, $parent, 0, 2);
+    
+    // Return all the children
+    $output = array();
+    if (!empty($categories)) {
+        $output['status'] = 'success';
+        $output['list'] = $categories;
+    }else{
+        $output['status'] = 'failed';
+        $output['list'] = '';
+    }
+    
+    echo drupal_to_js($output);
+    exit;    
+}
+
+/**
+* Process to build category
+*/
+function ebay_category_mapping_build_category($category_id) {
+    // Try to keep the script as long as possible
+    set_time_limit(0);
+        
+    // Retrieve categories by ids
+    $ebay_categories = array();
+    
+    // We include parent into this list for further manipulation (jquery involved)
+    $ebay_categories = _ebay_category_mapping_db_get_by_categoryid($category_id);
+    
+    if (!empty($ebay_categories)) {
+        $children_categories = _ebay_category_mapping_db_get_by_categoryparentid($category_id);
+        
+        if (!empty($children_categories)) {
+            $ebay_categories += $children_categories;
+        }
+        else{
+            // Update children from eBay site
+            $children_categories = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($category_id));
+
+            // Insert into local db so that no need to call to eBay site again
+            if (!empty($ebay_categories)) {                
+                foreach ($ebay_categories as $cid => $category) {
+                    if ($cid != $category_id) {
+                        _ebay_category_mapping_db_insert($category);
+                    }
+                }
+                
+                unset($children_categories[$category_id]);
+                $ebay_categories += $children_categories;
+            }
+        }
+    }
+    else{
+        // Request to retrieve data from ebay api
+        $ebay_categories = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($category_id));
+
+        // Insert into local db so that no need to call to eBay site again
+        if (!empty($ebay_categories)) {
+            foreach ($ebay_categories as $cid => $category) {
+                // Possibly duplicated category id, but that goes to MySQL validator
+                _ebay_category_mapping_db_insert($category);
+            }
+        }    
+    }
+    
+    // Remove the current category to prevent duplication
+    unset($ebay_categories[$category_id]);
+    
+    // Return all the children
+    $output = array();
+    if (!empty($ebay_categories)) {
+        $output['status'] = 'success';
+        $output['list'] = $ebay_categories;
+    }else{
+        $output['status'] = 'failed';
+        $output['list'] = '';
+    }
+    
+    echo drupal_to_js($output);
+    exit;    
+}
+
+/**
+* eBay categories mapping page
+*/
+function ebay_category_mapping_page() {
+    // Setup the tree here
+    drupal_add_js(drupal_get_path('module', 'ebay_category_mapping') .'/ebay_category_mapping.js');
+    drupal_add_css(drupal_get_path('module', 'ebay_category_mapping') .'/ebay_category_mapping.css');
+    
+    $output = '';
+    $output .= '<div id="category_tree_holder">';
+    $output .= '<div id="category_tree_ebay_holder">';
+    $output .= '<div class="label">'. t('eBay categories:') .'</div>';
+    $output .= '<ul><li id="folder_-1" class="level_0"><p class="is_closed not_built li_row_label" id="-1" onclick="Drupal.ebay_category_mapping.tree_click(this);">Root</p></li></ul>';
+    $output .= '</div>';
+    $output .= '<div id="category_tree_drupal_holder">';
+    $output .= '<div class="label">'. t('Drupal categories:') .'</div>';
+    $output .= ebay_category_mapping_build_taxonomy_tree();
+    $output .= '</div>';
+    $output .= '</div>';
+    
+    return $output;
+}
+
+/**
+* Recusive function to build eBay entire categories
+* This would take forever time as eBay categories are super large, avoid to use
+*/
+//function ebay_category_mapping_get_ebay_categories($category_id) {    
+    // Get the category and its children
+//    $category_children = _ebay_category_mapping_get_category_array(ebayapi_getcategoryinfo($category_id));
+//    
+//    if (count($category_children) <= 1) {
+        // Exit the recusion
+//        return $category_children;
+//    }else{
+        // Returned array
+//        $categories = array();
+//        $categories["". $category_id] = $category_children[$category_id];
+
+        // Remove the first element to avoid duplicated call
+        // (first element is the current category)
+//        unset($category_children[$category_id]);
+//        
+        // Make recusive call
+//        foreach ($category_children as $cid => $category) {
+            //echo $cid .' - '. $category['CategoryName'] .'<br>';
+//            $categories += ebay_category_mapping_get_ebay_categories($cid);
+//        }
+
+//        return $categories;
+//    }
+//}
+
+/**
+* Support function to get the category array out of the CategoryInfo results
+*/
+function _ebay_category_mapping_get_category_array($category) {
+    $category_array = array();
+    
+    if (!empty($category->CategoryArray->Category)) {
+        foreach ($category->CategoryArray->Category as $this_category) {
+            $category_index = (string)$this_category->CategoryID;
+            $category_array["". $category_index]['CategoryID'] = (int)$this_category->CategoryID;
+            $category_array["". $category_index]['CategoryLevel'] = (int)$this_category->CategoryLevel;
+            $category_array["". $category_index]['CategoryName'] = (string)$this_category->CategoryName;
+            $category_array["". $category_index]['CategoryParentID'] = (int)$this_category->CategoryParentID;
+            $category_array["". $category_index]['CategoryNamePath'] = (string)$this_category->CategoryNamePath;
+            $category_array["". $category_index]['CategoryIDPath'] = (string)$this_category->CategoryIDPath;
+            $category_array["". $category_index]['LeafCategory'] = (string)$this_category->LeafCategory;
+        }
+    }
+    
+    return $category_array;
+}
+
+/**
+* Helper function to remove all db from the 'ebay_category_mapping' table
+*/
+function _ebay_category_mapping_db_clean() {
+    @db_query("DELETE FROM {ebay_category_mapping}");
+}
+
+/**
+* Helper function to insert new category into the table 'ebay_category_mapping'
+*/
+function _ebay_category_mapping_db_insert($category) {
+    @db_query("INSERT INTO {ebay_category_mapping} (CategoryID, CategoryLevel, CategoryName, CategoryParentID, CategoryNamePath, CategoryIDPath, LeafCategory) VALUES (%d, %d, '%s', %d, '%s', '%s', '%s')", $category['CategoryID'], $category['CategoryLevel'], $category['CategoryName'], $category['CategoryParentID'], $category['CategoryNamePath'], $category['CategoryIDPath'], $category['LeafCategory']);
+}
+
+/**
+* Helper function to retrieve all items from 'ebay_category_mapping'
+*/
+function _ebay_category_mapping_db_get() {
+    $categories = array();
+    $results = db_query("SELECT CategoryID, CategoryLevel, CategoryName, CategoryParentID, CategoryNamePath, CategoryIDPath, LeafCategory FROM {ebay_category_mapping}");
+    while ($result = db_fetch_object($results)) {
+        $categories["". $result->CategoryID] = array();
+        $categories["". $result->CategoryID]['CategoryID'] = $result->CategoryID;
+        $categories["". $result->CategoryID]['CategoryLevel'] = $result->CategoryLevel;
+        $categories["". $result->CategoryID]['CategoryName'] = $result->CategoryName;
+        $categories["". $result->CategoryID]['CategoryParentID'] = $result->CategoryParentID;
+        $categories["". $result->CategoryID]['CategoryNamePath'] = $result->CategoryNamePath;
+        $categories["". $result->CategoryID]['CategoryIDPath'] = $result->CategoryIDPath;
+        $categories["". $result->CategoryID]['LeafCategory'] = $result->LeafCategory;
+    }
+    
+    return $categories;
+}
+
+/**
+* Helper function to retrieve item from 'ebay_category_mapping' by CategoryID
+*/
+function _ebay_category_mapping_db_get_by_categoryid($categoryid) {
+    $category = array();
+    $results = db_query("SELECT CategoryID, CategoryLevel, CategoryName, CategoryParentID, CategoryNamePath, CategoryIDPath, LeafCategory FROM {ebay_category_mapping} WHERE CategoryID=%d", $categoryid);
+    while ($result = db_fetch_object($results)) {
+        $category["". $result->CategoryID] = array();
+        $category["". $result->CategoryID]['CategoryID'] = $result->CategoryID;
+        $category["". $result->CategoryID]['CategoryLevel'] = $result->CategoryLevel;
+        $category["". $result->CategoryID]['CategoryName'] = $result->CategoryName;
+        $category["". $result->CategoryID]['CategoryParentID'] = $result->CategoryParentID;
+        $category["". $result->CategoryID]['CategoryNamePath'] = $result->CategoryNamePath;
+        $category["". $result->CategoryID]['CategoryIDPath'] = $result->CategoryIDPath;
+        $category["". $result->CategoryID]['LeafCategory'] = $result->LeafCategory;
+    }
+    
+    return $category;
+}
+
+/**
+* Helper function to get category by name (get LeafCategory only)
+*/
+function _ebay_category_mapping_db_get_by_categoryname($categoryname, $leaf = TRUE) {
+    if ($leaf) {
+        $leaf = 'true';
+    }
+    else{
+        $leaf = 'false';
+    }
+    
+    $category = array();
+    $results = db_query("SELECT CategoryID, CategoryLevel, CategoryName, CategoryParentID, CategoryNamePath, CategoryIDPath, LeafCategory FROM {ebay_category_mapping} WHERE LOWER(CategoryName) = LOWER('%s') AND LOWER(LeafCategory) = LOWER('%s')", $categoryname, $leaf);
+    while ($result = db_fetch_object($results)) {
+        $category["". $result->CategoryID] = array();
+        $category["". $result->CategoryID]['CategoryID'] = $result->CategoryID;
+        $category["". $result->CategoryID]['CategoryLevel'] = $result->CategoryLevel;
+        $category["". $result->CategoryID]['CategoryName'] = $result->CategoryName;
+        $category["". $result->CategoryID]['CategoryParentID'] = $result->CategoryParentID;
+        $category["". $result->CategoryID]['CategoryNamePath'] = $result->CategoryNamePath;
+        $category["". $result->CategoryID]['CategoryIDPath'] = $result->CategoryIDPath;
+        $category["". $result->CategoryID]['LeafCategory'] = $result->LeafCategory;
+    }
+    
+    return $category;    
+}
+
+/**
+* Helper function to get category id by name (get LeafCategory only)
+*/
+function _ebay_category_mapping_db_get_categoryid_by_categoryname($categoryname, $leaf = TRUE) {
+    if ($leaf) {
+        $leaf = 'true';
+    }
+    else{
+        $leaf = 'false';
+    }
+    
+    $results = db_query("SELECT CategoryID FROM {ebay_category_mapping} WHERE LOWER(CategoryName) = LOWER('%s') AND LOWER(LeafCategory) = LOWER('%s')", $categoryname, $leaf);
+    while ($result = db_fetch_object($results)) {
+        return $result->CategoryID;
+    }
+    
+    return null;    
+}
+
+
+/**
+* Helper function to retrieve item from 'ebay_category_mapping' by CategoryParentID
+*/
+function _ebay_category_mapping_db_get_by_categoryparentid($categoryparentid) {
+    $categories = array();
+    
+    $results = db_query("SELECT CategoryID, CategoryLevel, CategoryName, CategoryParentID, CategoryNamePath, CategoryIDPath, LeafCategory FROM {ebay_category_mapping} WHERE CategoryParentID=%d", $categoryparentid);
+    while ($result = db_fetch_object($results)) {
+        $categories["". $result->CategoryID] = array();
+        $categories["". $result->CategoryID]['CategoryID'] = $result->CategoryID;
+        $categories["". $result->CategoryID]['CategoryLevel'] = $result->CategoryLevel;
+        $categories["". $result->CategoryID]['CategoryName'] = $result->CategoryName;
+        $categories["". $result->CategoryID]['CategoryParentID'] = $result->CategoryParentID;
+        $categories["". $result->CategoryID]['CategoryNamePath'] = $result->CategoryNamePath;
+        $categories["". $result->CategoryID]['CategoryIDPath'] = $result->CategoryIDPath;
+        $categories["". $result->CategoryID]['LeafCategory'] = $result->LeafCategory;
+    }
+    
+    return $categories;
+}

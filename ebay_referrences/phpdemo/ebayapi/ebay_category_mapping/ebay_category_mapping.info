@@ -1,0 +1,8 @@
+; $Id: ebay_category_mapping.info, v 1.0 2010/11/09 tuan Exp $
+name = eBay Category Mapping
+description = Provide mapping solution for eBay categories to your local Drupal site.
+package = "eBay lister"
+project = "ebay_category_mapping"
+dependencies[] = ebayapi
+core = "6.x"
+version = "6.x-1.0"
